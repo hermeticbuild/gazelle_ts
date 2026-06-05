@@ -62,9 +62,12 @@ func TestIsVisualLibraryFile_DefaultPatterns(t *testing.T) {
 	cfg := newTsConfig()
 	cases := map[string]bool{
 		"Button.story.tsx":           true,
+		"Button.visual.tsx":          true,
 		"nested/Button.story.tsx":    true,
+		"nested/Button.visual.tsx":   true,
 		"Button.stories.tsx":         false,
 		"Button.story.ts":            false,
+		"Button.visual.ts":           false,
 		"Button.test.tsx":            false,
 		"src/Button.tsx":             false,
 		"deeply/nested/Button.story": false,
@@ -180,7 +183,9 @@ func TestCollectSrcs(t *testing.T) {
 		"types.tsx",
 		"main.test.ts",
 		"Button.story.tsx",
+		"Card.visual.tsx",
 		"nested/Card.story.tsx",
+		"nested/Dialog.visual.tsx",
 		"nested/main.spec.ts",
 		"tests/integration.ts",
 		"README.md",
@@ -190,7 +195,7 @@ func TestCollectSrcs(t *testing.T) {
 
 	wantLibs := []string{"helper.ts", "main.ts", "types.tsx"}
 	wantTests := []string{"main.test.ts", "nested/main.spec.ts", "tests/integration.ts"}
-	wantVisualLibraries := []string{"Button.story.tsx", "nested/Card.story.tsx"}
+	wantVisualLibraries := []string{"Button.story.tsx", "Card.visual.tsx", "nested/Card.story.tsx", "nested/Dialog.visual.tsx"}
 	if !reflect.DeepEqual(parts.lib, wantLibs) {
 		t.Errorf("libs = %v, want %v", parts.lib, wantLibs)
 	}

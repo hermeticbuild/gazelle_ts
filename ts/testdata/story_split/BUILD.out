@@ -12,7 +12,10 @@ ts_library(
 
 ts_visual_library(
     name = "visual_library",
-    srcs = ["Button.story.tsx"],
+    srcs = [
+        "Button.story.tsx",
+        "Card.visual.tsx",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         ":lib",

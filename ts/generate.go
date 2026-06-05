@@ -345,7 +345,8 @@ func isTestFile(name string, cfg *tsConfig) bool {
 }
 
 // isVisualLibraryFile matches the file path against configured visual-library
-// patterns. The default keeps `*.story.tsx` out of the library target.
+// patterns. Defaults keep `*.story.tsx` and `*.visual.tsx` out of the library
+// target.
 func isVisualLibraryFile(name string, cfg *tsConfig) bool {
 	for _, pat := range cfg.visualLibraryPatterns {
 		if matchPathPattern(pat, name) {

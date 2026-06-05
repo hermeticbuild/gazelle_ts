@@ -24,7 +24,7 @@ const (
 	KindTsTest = "ts_test"
 
 	// KindTsVisualLibrary is the abstract visual-library kind. It keeps
-	// `*.story.tsx` files out of the main library while preserving their own
+	// visual entrypoints out of the main library while preserving their own
 	// import deps.
 	KindTsVisualLibrary = "ts_visual_library"
 )
@@ -44,7 +44,9 @@ var (
 	}
 	defaultVisualLibraryPatterns = []string{
 		"*.story.tsx",
+		"*.visual.tsx",
 		"**/*.story.tsx",
+		"**/*.visual.tsx",
 	}
 	defaultExtensions = []string{".ts", ".tsx"}
 	defaultVisibility = []string{"//visibility:public"}

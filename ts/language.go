@@ -6,7 +6,7 @@
 //
 //   - ts_library          for libraries
 //   - ts_test             for tests (assumes a multi-entry runner; no entry_point)
-//   - ts_visual_library            for Storybook story files (`*.story.tsx`)
+//   - ts_visual_library  for visual files (`*.story.tsx`, `*.visual.tsx`)
 //   - ts_bundler_config   for files matched by ts_bundler_config_pattern
 //
 // Consumers wire each to a concrete macro:

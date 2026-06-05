@@ -33,8 +33,8 @@ import (
 // needed by an underlying runner like js_test.
 //
 // `ts_visual_library` is emitted for visual-library entrypoints such as
-// Storybook `*.story.tsx` files, with Storybook-only imports in its own
-// `deps` so they don't leak into the library target.
+// `*.story.tsx` and `*.visual.tsx` files, with visual-only imports in its
+// own `deps` so they don't leak into the library target.
 //
 // `ts_binary` and `js_binary` are both hand-written by the user — we never
 // generate them. The plugin scans the rule's `entry_point`/`srcs` imports

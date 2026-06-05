@@ -128,8 +128,8 @@ def myrepo_ts_test(name, srcs, deps = [], data = [], **kwargs):
     js_test(name = name, data = srcs + deps + data, entry_point = srcs[0], **kwargs)
 
 def myrepo_ts_visual_library(name, srcs, deps = [], **kwargs):
-    # Generated ts_visual_library srcs are Storybook story entrypoints split out from
-    # the main library so Storybook-only deps stay on this target.
+    # Generated ts_visual_library srcs are visual entrypoints split out from
+    # the main library so visual-only deps stay on this target.
     ts_project(name = name, srcs = srcs, deps = deps, **kwargs)
 
 def myrepo_ts_binary(name, **kwargs):
@@ -220,9 +220,9 @@ project-specific layouts:
 # gazelle:ts_test_pattern __tests__/**/*.tsx
 ```
 
-Storybook story files matching `*.story.tsx` are split out by default into a
-generated `ts_visual_library` target. Add patterns for project-specific visual
-module inputs:
+Visual component entrypoints matching `*.story.tsx` or `*.visual.tsx` are split
+out by default into a generated `ts_visual_library` target. Add patterns for
+project-specific visual library inputs:
 
 ```starlark
 # gazelle:ts_visual_library_pattern *.stories.tsx
@@ -266,7 +266,7 @@ directory overrides or appends to them.
 | `ts_visual_library_name` | package basename + `_visual_library`, or `visual_library` at repo root | Name of the generated `ts_visual_library`. |
 | `ts_visibility` | `//visibility:public` | Space-separated visibility labels. Replaces inherited visibility. |
 | `ts_test_pattern` | `*.test.ts`, `*.test.tsx`, `tests/**`, `test/**`, `**/*.test.ts`, `**/*.test.tsx`, `**/*.spec.ts`, `**/*.spec.tsx` | Append a doublestar glob used to classify tests. |
-| `ts_visual_library_pattern` | `*.story.tsx`, `**/*.story.tsx` | Append a doublestar glob used to classify Storybook story files. |
+| `ts_visual_library_pattern` | `*.story.tsx`, `*.visual.tsx`, `**/*.story.tsx`, `**/*.visual.tsx` | Append a doublestar glob used to classify visual library files. |
 | `ts_extension` | `.ts`, `.tsx` | Append a file extension treated as TypeScript input. |
 | `ts_npm_link_pattern` | `//:node_modules/{pkg}` | Template for npm labels. `{pkg}` is replaced with the resolved package name, including scopes. |
 | `ts_test_data` | empty | Append a label to every generated test rule's `data`. |
@@ -288,7 +288,7 @@ Useful Gazelle directives alongside `gazelle_ts`:
 |---|---:|---|---|
 | `ts_library` | yes | `srcs`, `visibility`, `deps`, `tsconfig_types` | A wrapper over `ts_project` or equivalent compile rule. |
 | `ts_test` | yes | `srcs`, `deps`, `data`, `tsconfig_types` | A wrapper over vitest, jest, mocha, `js_test`, or another runner. No `entry_point` is emitted. |
-| `ts_visual_library` | yes, for `*.story.tsx` by default | `srcs`, `visibility`, `deps`, `tsconfig_types` | A wrapper over `ts_project` or another Storybook story typecheck rule. |
+| `ts_visual_library` | yes, for `*.story.tsx` and `*.visual.tsx` by default | `srcs`, `visibility`, `deps`, `tsconfig_types` | A wrapper over `ts_project` or another visual-library typecheck rule. |
 | `ts_bundler_config` | yes, from `ts_bundler_config_pattern` | `srcs`, `visibility`, `deps`, `tsconfig_types` | A wrapper over `ts_project` or equivalent tooling-config typecheck rule. |
 | `ts_binary` | no | `data`, `tsconfig_types` | A hand-written binary rule mapped through `map_kind`. Gazelle scans `entry_point` / `srcs`. |
 | `js_binary` | no | `data` | A hand-written stock rules_js binary. Gazelle scans `entry_point` / `srcs`. |
