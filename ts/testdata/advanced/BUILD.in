@@ -40,7 +40,7 @@ ts_config(
 # leaves to the consumer.
 # gazelle:map_kind ts_library myorg_ts_library //tools:ts.bzl
 # gazelle:map_kind ts_test    vitest_test      //tools:ts.bzl
-# gazelle:map_kind ts_visual_module   myorg_ts_visual_module   //tools:ts.bzl
+# gazelle:map_kind ts_visual_library   myorg_ts_visual_library   //tools:ts.bzl
 # gazelle:map_kind ts_binary  myorg_ts_binary  //tools:ts.bzl
 
 gazelle_binary(

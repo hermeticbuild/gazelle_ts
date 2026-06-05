@@ -455,14 +455,14 @@ func TestResolve_MappedTsTestPopulatesTsconfigTypes(t *testing.T) {
 	}
 }
 
-func TestResolve_MappedTsVisualModulePopulatesDepsAndTsconfigTypes(t *testing.T) {
+func TestResolve_MappedTsVisualLibraryPopulatesDepsAndTsconfigTypes(t *testing.T) {
 	cfg := newTsConfig()
 	c := config.New()
 	c.Exts[languageName] = cfg
 	c.KindMap = map[string]config.MappedKind{}
-	c.KindMap[KindTsVisualModule] = config.MappedKind{
-		FromKind: KindTsVisualModule,
-		KindName: "myorg_ts_visual_module",
+	c.KindMap[KindTsVisualLibrary] = config.MappedKind{
+		FromKind: KindTsVisualLibrary,
+		KindName: "myorg_ts_visual_library",
 		KindLoad: "//tools:ts.bzl",
 	}
 	resolveConfigurer := &gazelleresolve.Configurer{}
@@ -473,7 +473,7 @@ func TestResolve_MappedTsVisualModulePopulatesDepsAndTsconfigTypes(t *testing.T)
 		packageDeps:       map[string]bool{"@storybook/react": true, "@types/node": true},
 		subpathImportsMap: map[string][]string{},
 	}
-	r := rule.NewRule("myorg_ts_visual_module", "web_visual_module")
+	r := rule.NewRule("myorg_ts_visual_library", "web_visual_library")
 	r.SetAttr("srcs", []string{"Button.story.tsx"})
 	r.SetAttr("deps", []string{":web"})
 	lang.Resolve(
@@ -487,7 +487,7 @@ func TestResolve_MappedTsVisualModulePopulatesDepsAndTsconfigTypes(t *testing.T)
 				{ImportPath: "node:path"},
 			},
 		},
-		label.Label{Pkg: "apps/web", Name: "web_visual_module"},
+		label.Label{Pkg: "apps/web", Name: "web_visual_library"},
 	)
 
 	if got, want := r.AttrStrings("tsconfig_types"), []string{"node"}; !reflect.DeepEqual(got, want) {

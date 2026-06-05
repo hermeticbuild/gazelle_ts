@@ -23,7 +23,7 @@ ts_config(
 # gazelle:ts_npm_link_pattern //:node_modules/{pkg}
 # gazelle:map_kind ts_library ts_library //tools:ts.bzl
 # gazelle:map_kind ts_test ts_test //tools:ts.bzl
-# gazelle:map_kind ts_visual_module ts_visual_module //tools:ts.bzl
+# gazelle:map_kind ts_visual_library ts_visual_library //tools:ts.bzl
 
 # Route imports of @myrepo_generated/* at the linker entries above. The
 # resolver wouldn't otherwise see `@myrepo_generated/queries` because it's

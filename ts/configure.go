@@ -18,10 +18,10 @@ const (
 	directiveEnabled              = "ts_enabled"
 	directiveLibraryName          = "ts_library_name"
 	directiveTestName             = "ts_test_name"
-	directiveVisualModuleName     = "ts_visual_module_name"
+	directiveVisualLibraryName    = "ts_visual_library_name"
 	directiveVisibility           = "ts_visibility"
 	directiveTestPattern          = "ts_test_pattern"
-	directiveVisualModulePattern  = "ts_visual_module_pattern"
+	directiveVisualLibraryPattern = "ts_visual_library_pattern"
 	directiveExtension            = "ts_extension"
 	directiveNpmLinkPattern       = "ts_npm_link_pattern"
 	directiveTestData             = "ts_test_data"
@@ -43,10 +43,10 @@ func (l *tsLang) KnownDirectives() []string {
 		directiveEnabled,
 		directiveLibraryName,
 		directiveTestName,
-		directiveVisualModuleName,
+		directiveVisualLibraryName,
 		directiveVisibility,
 		directiveTestPattern,
-		directiveVisualModulePattern,
+		directiveVisualLibraryPattern,
 		directiveExtension,
 		directiveNpmLinkPattern,
 		directiveTestData,
@@ -93,9 +93,9 @@ func applyDirective(cfg *tsConfig, d rule.Directive) {
 		if val != "" {
 			cfg.testName = val
 		}
-	case directiveVisualModuleName:
+	case directiveVisualLibraryName:
 		if val != "" {
-			cfg.visualModuleName = val
+			cfg.visualLibraryName = val
 		}
 	case directiveVisibility:
 		if val != "" {
@@ -105,9 +105,9 @@ func applyDirective(cfg *tsConfig, d rule.Directive) {
 		if val != "" {
 			cfg.testPatterns = appendUnique(cfg.testPatterns, val)
 		}
-	case directiveVisualModulePattern:
+	case directiveVisualLibraryPattern:
 		if val != "" {
-			cfg.visualModulePatterns = appendUnique(cfg.visualModulePatterns, val)
+			cfg.visualLibraryPatterns = appendUnique(cfg.visualLibraryPatterns, val)
 		}
 	case directiveExtension:
 		if val != "" {

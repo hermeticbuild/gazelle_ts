@@ -16,14 +16,14 @@ import (
 // we do. This is how manually-set attrs like tsconfig overrides, transpiler
 // choices, or custom args survive gazelle runs.
 //
-// `ts_library`, `ts_test`, `ts_visual_module`, `ts_binary`, and `ts_bundler_config`
+// `ts_library`, `ts_test`, `ts_visual_library`, `ts_binary`, and `ts_bundler_config`
 // are all abstract kinds — the plugin emits them with the
 // @gazelle_ts//ts:defs.bzl load path, and consumers map_kind each to a
 // project-specific macro:
 //
 //	# gazelle:map_kind ts_library         <macro> <load_path>
 //	# gazelle:map_kind ts_test            <macro> <load_path>
-//	# gazelle:map_kind ts_visual_module   <macro> <load_path>
+//	# gazelle:map_kind ts_visual_library   <macro> <load_path>
 //	# gazelle:map_kind ts_binary          <macro> <load_path>
 //	# gazelle:map_kind ts_bundler_config  <macro> <load_path>
 //
@@ -32,7 +32,7 @@ import (
 // runtime fixtures in `data`. Wrappers can pick an entry from srcs when
 // needed by an underlying runner like js_test.
 //
-// `ts_visual_module` is emitted for visual-module entrypoints such as
+// `ts_visual_library` is emitted for visual-library entrypoints such as
 // Storybook `*.story.tsx` files, with Storybook-only imports in its own
 // `deps` so they don't leak into the library target.
 //
@@ -75,7 +75,7 @@ var tsKinds = map[string]rule.KindInfo{
 			"tsconfig_types": true,
 		},
 	},
-	KindTsVisualModule: {
+	KindTsVisualLibrary: {
 		NonEmptyAttrs:  map[string]bool{"name": true},
 		MergeableAttrs: map[string]bool{"srcs": true, "deps": true, "tsconfig_types": true},
 		ResolveAttrs: map[string]bool{
@@ -127,7 +127,7 @@ func (l *tsLang) Loads() []rule.LoadInfo {
 		},
 		{
 			Name:    "@gazelle_ts//ts:defs.bzl",
-			Symbols: []string{KindTsLibrary, KindTsTest, KindTsVisualModule, KindTsBinary, KindBundlerConfig},
+			Symbols: []string{KindTsLibrary, KindTsTest, KindTsVisualLibrary, KindTsBinary, KindBundlerConfig},
 		},
 	}
 }

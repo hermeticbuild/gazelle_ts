@@ -99,7 +99,7 @@ the workspace root:
 ```starlark
 # gazelle:map_kind ts_library         myrepo_ts_library     //tools:ts.bzl
 # gazelle:map_kind ts_test            myrepo_ts_test        //tools:ts.bzl
-# gazelle:map_kind ts_visual_module   myrepo_ts_visual_module //tools:ts.bzl
+# gazelle:map_kind ts_visual_library   myrepo_ts_visual_library //tools:ts.bzl
 # gazelle:map_kind ts_binary          myrepo_ts_binary      //tools:ts.bzl
 # gazelle:map_kind ts_bundler_config  myrepo_bundler_config //tools:ts.bzl
 ```
@@ -127,8 +127,8 @@ def myrepo_ts_test(name, srcs, deps = [], data = [], **kwargs):
     # forward srcs/deps/data directly; stock js_test needs one entry_point.
     js_test(name = name, data = srcs + deps + data, entry_point = srcs[0], **kwargs)
 
-def myrepo_ts_visual_module(name, srcs, deps = [], **kwargs):
-    # Generated ts_visual_module srcs are Storybook story entrypoints split out from
+def myrepo_ts_visual_library(name, srcs, deps = [], **kwargs):
+    # Generated ts_visual_library srcs are Storybook story entrypoints split out from
     # the main library so Storybook-only deps stay on this target.
     ts_project(name = name, srcs = srcs, deps = deps, **kwargs)
 
@@ -221,12 +221,12 @@ project-specific layouts:
 ```
 
 Storybook story files matching `*.story.tsx` are split out by default into a
-generated `ts_visual_module` target. Add patterns for project-specific visual
+generated `ts_visual_library` target. Add patterns for project-specific visual
 module inputs:
 
 ```starlark
-# gazelle:ts_visual_module_pattern *.stories.tsx
-# gazelle:ts_visual_module_pattern **/*.stories.tsx
+# gazelle:ts_visual_library_pattern *.stories.tsx
+# gazelle:ts_visual_library_pattern **/*.stories.tsx
 ```
 
 Bundler and tooling configs can be held out of the library closure:
@@ -263,10 +263,10 @@ directory overrides or appends to them.
 | `ts_enabled` | `true` | Enable or disable the TypeScript extension for the current tree. Accepts `true/false`, `1/0`, `yes/no`, and `on/off`. |
 | `ts_library_name` | package basename, or `lib` at repo root | Name of the generated `ts_library`. |
 | `ts_test_name` | package basename + `_test`, or `test` at repo root | Name of the generated `ts_test`. |
-| `ts_visual_module_name` | package basename + `_visual_module`, or `visual_module` at repo root | Name of the generated `ts_visual_module`. |
+| `ts_visual_library_name` | package basename + `_visual_library`, or `visual_library` at repo root | Name of the generated `ts_visual_library`. |
 | `ts_visibility` | `//visibility:public` | Space-separated visibility labels. Replaces inherited visibility. |
 | `ts_test_pattern` | `*.test.ts`, `*.test.tsx`, `tests/**`, `test/**`, `**/*.test.ts`, `**/*.test.tsx`, `**/*.spec.ts`, `**/*.spec.tsx` | Append a doublestar glob used to classify tests. |
-| `ts_visual_module_pattern` | `*.story.tsx`, `**/*.story.tsx` | Append a doublestar glob used to classify Storybook story files. |
+| `ts_visual_library_pattern` | `*.story.tsx`, `**/*.story.tsx` | Append a doublestar glob used to classify Storybook story files. |
 | `ts_extension` | `.ts`, `.tsx` | Append a file extension treated as TypeScript input. |
 | `ts_npm_link_pattern` | `//:node_modules/{pkg}` | Template for npm labels. `{pkg}` is replaced with the resolved package name, including scopes. |
 | `ts_test_data` | empty | Append a label to every generated test rule's `data`. |
@@ -278,7 +278,7 @@ Useful Gazelle directives alongside `gazelle_ts`:
 
 | Directive | Use |
 |---|---|
-| `map_kind` | Map `ts_library`, `ts_test`, `ts_visual_module`, `ts_binary`, and `ts_bundler_config` to concrete project macros. |
+| `map_kind` | Map `ts_library`, `ts_test`, `ts_visual_library`, `ts_binary`, and `ts_bundler_config` to concrete project macros. |
 | `resolve` / `resolve_regexp` | Override arbitrary TypeScript imports before package, subpath, builtin, or npm resolution. Use language `ts`. |
 | `exclude` | Remove files or directories from Gazelle's walk before this extension sees them. |
 
@@ -288,7 +288,7 @@ Useful Gazelle directives alongside `gazelle_ts`:
 |---|---:|---|---|
 | `ts_library` | yes | `srcs`, `visibility`, `deps`, `tsconfig_types` | A wrapper over `ts_project` or equivalent compile rule. |
 | `ts_test` | yes | `srcs`, `deps`, `data`, `tsconfig_types` | A wrapper over vitest, jest, mocha, `js_test`, or another runner. No `entry_point` is emitted. |
-| `ts_visual_module` | yes, for `*.story.tsx` by default | `srcs`, `visibility`, `deps`, `tsconfig_types` | A wrapper over `ts_project` or another Storybook story typecheck rule. |
+| `ts_visual_library` | yes, for `*.story.tsx` by default | `srcs`, `visibility`, `deps`, `tsconfig_types` | A wrapper over `ts_project` or another Storybook story typecheck rule. |
 | `ts_bundler_config` | yes, from `ts_bundler_config_pattern` | `srcs`, `visibility`, `deps`, `tsconfig_types` | A wrapper over `ts_project` or equivalent tooling-config typecheck rule. |
 | `ts_binary` | no | `data`, `tsconfig_types` | A hand-written binary rule mapped through `map_kind`. Gazelle scans `entry_point` / `srcs`. |
 | `js_binary` | no | `data` | A hand-written stock rules_js binary. Gazelle scans `entry_point` / `srcs`. |
@@ -385,16 +385,17 @@ Gazelle partitions TypeScript files in each package before generating rules:
 1. Files must match a configured `ts_extension`.
 2. Files matching the longest `ts_bundler_config_pattern` become
    `ts_bundler_config` srcs.
-3. Remaining files matching any `ts_visual_module_pattern` become `ts_visual_module` srcs.
+3. Remaining files matching any `ts_visual_library_pattern` become `ts_visual_library` srcs.
 4. Remaining files matching any `ts_test_pattern` become `ts_test` srcs.
 5. Everything else becomes `ts_library` srcs.
 
-Bundler-config classification wins over story and test classification. Multiple
-bundler-config patterns can share the same target name; their files are merged.
-Story rules depend on the sibling library when present. If a config imports a
-relative helper that lives in the library, the config rule depends on the
-sibling library. Imports from library sources into visual-module or config
-files are deliberately not routed back to those targets.
+Bundler-config classification wins over visual-library and test classification.
+Multiple bundler-config patterns can share the same target name; their files
+are merged. Visual-library rules depend on the sibling library when present. If
+a config imports a relative helper that lives in the library, the config rule
+depends on the sibling library. Imports from library sources into
+visual-library or config files are deliberately not routed back to those
+targets.
 
 Generated files that would otherwise be dropped can be preserved with Gazelle's
 normal `# keep` comments on the relevant attr.
@@ -426,15 +427,15 @@ runs.
 | `data` | generate | Mergeable runtime fixtures from `ts_test_data` and `# keep`. |
 | `tsconfig_types` | resolve | Inferred ambient type names for test-only imports/globals. |
 
-### `ts_visual_module`
+### `ts_visual_library`
 
 | Attr | Set by | Behavior |
 |---|---|---|
-| `name` | generate | Required, from `ts_visual_module_name` or package basename + `_visual_module`. |
-| `srcs` | generate | Mergeable visual module entrypoints. |
+| `name` | generate | Required, from `ts_visual_library_name` or package basename + `_visual_library`. |
+| `srcs` | generate | Mergeable visual library entrypoints. |
 | `visibility` | generate | Replaced from `ts_visibility`. |
-| `deps` | generate + resolve | Includes the sibling library when present plus imports from visual module files. |
-| `tsconfig_types` | resolve | Inferred ambient type names for visual-module-only imports/globals. |
+| `deps` | generate + resolve | Includes the sibling library when present plus imports from visual library files. |
+| `tsconfig_types` | resolve | Inferred ambient type names for visual-library-only imports/globals. |
 
 ### `ts_bundler_config`
 
@@ -476,7 +477,7 @@ Gazelle calls the language in three main phases:
    and apply BUILD-file directives for the current directory. At the repo root,
    package.json dependencies and imports are loaded.
 2. **GenerateRules** ([ts/generate.go](ts/generate.go)): partition files into
-   library, test, visual-module, bundler-config, and hand-written binary
+   library, test, visual-library, bundler-config, and hand-written binary
    inputs; call the Rust extractor; and emit generated rules with attached
    import data.
 3. **Imports / Resolve** ([ts/imports.go](ts/imports.go),
@@ -512,7 +513,7 @@ plugin apply on the next `bazel run //:gazelle`. See
 If you are updating from a version that emitted `ts_project` / `js_test`
 directly:
 
-1. Add `map_kind` directives for `ts_library`, `ts_test`, `ts_visual_module`, and any
+1. Add `map_kind` directives for `ts_library`, `ts_test`, `ts_visual_library`, and any
    generated `ts_bundler_config` rules.
 2. Move project-reference compile flags (`composite`, `declaration`,
    `source_map`, `declaration_map`), `transpiler`, and `tsconfig` into wrapper

@@ -58,7 +58,7 @@ func TestIsTestFile_CustomPatterns(t *testing.T) {
 	}
 }
 
-func TestIsVisualModuleFile_DefaultPatterns(t *testing.T) {
+func TestIsVisualLibraryFile_DefaultPatterns(t *testing.T) {
 	cfg := newTsConfig()
 	cases := map[string]bool{
 		"Button.story.tsx":           true,
@@ -70,16 +70,16 @@ func TestIsVisualModuleFile_DefaultPatterns(t *testing.T) {
 		"deeply/nested/Button.story": false,
 	}
 	for name, want := range cases {
-		if got := isVisualModuleFile(name, cfg); got != want {
-			t.Errorf("isVisualModuleFile(%q) = %v, want %v", name, got, want)
+		if got := isVisualLibraryFile(name, cfg); got != want {
+			t.Errorf("isVisualLibraryFile(%q) = %v, want %v", name, got, want)
 		}
 	}
 }
 
-func TestIsVisualModuleFile_CustomPatterns(t *testing.T) {
+func TestIsVisualLibraryFile_CustomPatterns(t *testing.T) {
 	cfg := newTsConfig()
-	cfg.visualModulePatterns = append(cfg.visualModulePatterns, "*.stories.tsx")
-	if !isVisualModuleFile("Button.stories.tsx", cfg) {
+	cfg.visualLibraryPatterns = append(cfg.visualLibraryPatterns, "*.stories.tsx")
+	if !isVisualLibraryFile("Button.stories.tsx", cfg) {
 		t.Errorf("custom *.stories.tsx pattern not picked up")
 	}
 }
@@ -110,36 +110,36 @@ func TestMatchTestPattern(t *testing.T) {
 
 func TestResolveRuleNames(t *testing.T) {
 	cases := []struct {
-		name             string
-		cfg              *tsConfig
-		rel              string
-		wantLib          string
-		wantTest         string
-		wantVisualModule string
+		name              string
+		cfg               *tsConfig
+		rel               string
+		wantLib           string
+		wantTest          string
+		wantVisualLibrary string
 	}{
 		{
-			name:             "default uses package basename",
-			cfg:              newTsConfig(),
-			rel:              "apps/web",
-			wantLib:          "web",
-			wantTest:         "web_test",
-			wantVisualModule: "web_visual_module",
+			name:              "default uses package basename",
+			cfg:               newTsConfig(),
+			rel:               "apps/web",
+			wantLib:           "web",
+			wantTest:          "web_test",
+			wantVisualLibrary: "web_visual_library",
 		},
 		{
-			name:             "deeply nested uses leaf basename",
-			cfg:              newTsConfig(),
-			rel:              "packages/utils/math/deep",
-			wantLib:          "deep",
-			wantTest:         "deep_test",
-			wantVisualModule: "deep_visual_module",
+			name:              "deeply nested uses leaf basename",
+			cfg:               newTsConfig(),
+			rel:               "packages/utils/math/deep",
+			wantLib:           "deep",
+			wantTest:          "deep_test",
+			wantVisualLibrary: "deep_visual_library",
 		},
 		{
-			name:             "repo root falls back to literal names",
-			cfg:              newTsConfig(),
-			rel:              "",
-			wantLib:          "lib",
-			wantTest:         "test",
-			wantVisualModule: "visual_module",
+			name:              "repo root falls back to literal names",
+			cfg:               newTsConfig(),
+			rel:               "",
+			wantLib:           "lib",
+			wantTest:          "test",
+			wantVisualLibrary: "visual_library",
 		},
 		{
 			name: "directive overrides win",
@@ -147,26 +147,26 @@ func TestResolveRuleNames(t *testing.T) {
 				c := newTsConfig()
 				c.libraryName = "src"
 				c.testName = "spec"
-				c.visualModuleName = "visuals"
+				c.visualLibraryName = "visuals"
 				return c
 			}(),
-			rel:              "packages/foo",
-			wantLib:          "src",
-			wantTest:         "spec",
-			wantVisualModule: "visuals",
+			rel:               "packages/foo",
+			wantLib:           "src",
+			wantTest:          "spec",
+			wantVisualLibrary: "visuals",
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			lib, test, visualModule := resolveRuleNames(c.cfg, c.rel)
+			lib, test, visualLibrary := resolveRuleNames(c.cfg, c.rel)
 			if lib != c.wantLib {
 				t.Errorf("lib = %q, want %q", lib, c.wantLib)
 			}
 			if test != c.wantTest {
 				t.Errorf("test = %q, want %q", test, c.wantTest)
 			}
-			if visualModule != c.wantVisualModule {
-				t.Errorf("visual module = %q, want %q", visualModule, c.wantVisualModule)
+			if visualLibrary != c.wantVisualLibrary {
+				t.Errorf("visual library = %q, want %q", visualLibrary, c.wantVisualLibrary)
 			}
 		})
 	}
@@ -190,15 +190,15 @@ func TestCollectSrcs(t *testing.T) {
 
 	wantLibs := []string{"helper.ts", "main.ts", "types.tsx"}
 	wantTests := []string{"main.test.ts", "nested/main.spec.ts", "tests/integration.ts"}
-	wantVisualModules := []string{"Button.story.tsx", "nested/Card.story.tsx"}
+	wantVisualLibraries := []string{"Button.story.tsx", "nested/Card.story.tsx"}
 	if !reflect.DeepEqual(parts.lib, wantLibs) {
 		t.Errorf("libs = %v, want %v", parts.lib, wantLibs)
 	}
 	if !reflect.DeepEqual(parts.test, wantTests) {
 		t.Errorf("tests = %v, want %v", parts.test, wantTests)
 	}
-	if !reflect.DeepEqual(parts.visualModule, wantVisualModules) {
-		t.Errorf("visual modules = %v, want %v", parts.visualModule, wantVisualModules)
+	if !reflect.DeepEqual(parts.visualLibrary, wantVisualLibraries) {
+		t.Errorf("visual libraries = %v, want %v", parts.visualLibrary, wantVisualLibraries)
 	}
 	if len(parts.bundlerConfigs) != 0 {
 		t.Errorf("bundlerConfigs = %v, want empty", parts.bundlerConfigs)
@@ -229,9 +229,9 @@ func TestCollectSrcs_BundlerConfigSplit(t *testing.T) {
 	if !reflect.DeepEqual(parts.test, wantTests) {
 		t.Errorf("test = %v, want %v", parts.test, wantTests)
 	}
-	wantVisualModules := []string{"Button.story.tsx"}
-	if !reflect.DeepEqual(parts.visualModule, wantVisualModules) {
-		t.Errorf("visual module = %v, want %v", parts.visualModule, wantVisualModules)
+	wantVisualLibraries := []string{"Button.story.tsx"}
+	if !reflect.DeepEqual(parts.visualLibrary, wantVisualLibraries) {
+		t.Errorf("visual library = %v, want %v", parts.visualLibrary, wantVisualLibraries)
 	}
 	if got := parts.bundlerConfigs[0]; !reflect.DeepEqual(got, []string{"vite.config.ts"}) {
 		t.Errorf("vite bucket = %v, want [vite.config.ts]", got)
@@ -270,8 +270,8 @@ func TestCollectSrcs_BundlerOverridesStory(t *testing.T) {
 	}
 	parts := collectSrcs([]string{"Button.story.tsx", "index.ts"}, cfg)
 
-	if len(parts.visualModule) != 0 {
-		t.Errorf("visual module bucket should be empty, got %v", parts.visualModule)
+	if len(parts.visualLibrary) != 0 {
+		t.Errorf("visual library bucket should be empty, got %v", parts.visualLibrary)
 	}
 	if got := parts.bundlerConfigs[0]; !reflect.DeepEqual(got, []string{"Button.story.tsx"}) {
 		t.Errorf("bundler bucket = %v, want [Button.story.tsx]", got)
@@ -327,7 +327,7 @@ func TestKinds_HasTsBinary(t *testing.T) {
 }
 
 func TestKinds_TsconfigTypesMergeable(t *testing.T) {
-	for _, kind := range []string{KindTsLibrary, KindTsTest, KindTsVisualModule, KindTsBinary, KindBundlerConfig} {
+	for _, kind := range []string{KindTsLibrary, KindTsTest, KindTsVisualLibrary, KindTsBinary, KindBundlerConfig} {
 		info := tsKinds[kind]
 		if !info.ResolveAttrs["tsconfig_types"] {
 			t.Errorf("%s should have tsconfig_types as ResolveAttr", kind)
@@ -338,18 +338,18 @@ func TestKinds_TsconfigTypesMergeable(t *testing.T) {
 	}
 }
 
-func TestKinds_HasTsVisualModule(t *testing.T) {
-	info, ok := tsKinds[KindTsVisualModule]
+func TestKinds_HasTsVisualLibrary(t *testing.T) {
+	info, ok := tsKinds[KindTsVisualLibrary]
 	if !ok {
-		t.Fatalf("tsKinds missing %q", KindTsVisualModule)
+		t.Fatalf("tsKinds missing %q", KindTsVisualLibrary)
 	}
 	for _, attr := range []string{"srcs", "deps"} {
 		if !info.MergeableAttrs[attr] {
-			t.Errorf("ts_visual_module should have %s as MergeableAttr", attr)
+			t.Errorf("ts_visual_library should have %s as MergeableAttr", attr)
 		}
 	}
 	if !info.ResolveAttrs["deps"] {
-		t.Errorf("ts_visual_module should have deps as ResolveAttr")
+		t.Errorf("ts_visual_library should have deps as ResolveAttr")
 	}
 }
 

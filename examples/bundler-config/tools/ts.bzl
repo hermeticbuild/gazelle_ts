@@ -28,5 +28,5 @@ def ts_bundler_config(name, srcs, **kwargs):
 def ts_test(name, srcs, deps = [], data = [], tsconfig_types = None, **kwargs):
     js_test(name = name, data = srcs + deps + data, entry_point = srcs[0], **kwargs)
 
-def ts_visual_module(name, srcs, deps = [], tsconfig_types = None, **kwargs):
+def ts_visual_library(name, srcs, deps = [], tsconfig_types = None, **kwargs):
     _project(name = name, srcs = srcs, deps = deps, **kwargs)

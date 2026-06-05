@@ -106,9 +106,9 @@ func (l *tsLang) Resolve(
 		tsconfigTypes = append(tsconfigTypes, testGlobalResolved.tsconfigTypes...)
 		setOrDelete(r, "tsconfig_types", tsconfigTypes)
 
-	case kindMatches(c, r.Kind(), KindTsVisualModule):
-		// ts_visual_module mirrors a compile target for Storybook-only entrypoints:
-		// srcs are visual module files, deps include the sibling lib plus
+	case kindMatches(c, r.Kind(), KindTsVisualLibrary):
+		// ts_visual_library mirrors a compile target for Storybook-only entrypoints:
+		// srcs are visual library files, deps include the sibling lib plus
 		// imports from those files, and no runtime data attr is managed.
 		resolved := l.resolveImportsToDeps(c, importData.Imports, from, ix, cfg)
 		globalResolved := resolveGlobalsToDeps(importData.Globals, cfg)

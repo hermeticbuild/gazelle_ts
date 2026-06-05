@@ -5,7 +5,7 @@ Gazelle is told to emit these via `# gazelle:map_kind` directives in
 
     # gazelle:map_kind ts_library  myorg_ts_library //tools:ts.bzl
     # gazelle:map_kind ts_test     vitest_test      //tools:ts.bzl
-    # gazelle:map_kind ts_visual_module    myorg_ts_visual_module   //tools:ts.bzl
+    # gazelle:map_kind ts_visual_library    myorg_ts_visual_library   //tools:ts.bzl
     # gazelle:map_kind ts_binary   myorg_ts_binary  //tools:ts.bzl
 
 The plugin emits TypeScript abstract kinds with no compile flags or
@@ -42,8 +42,8 @@ def myorg_ts_binary(name, tsconfig_types = None, **kwargs):
     auto-manages `data` from the rule's entry_point/srcs imports."""
     _js_binary(name = name, **kwargs)
 
-def myorg_ts_visual_module(name, srcs, deps = [], tsconfig_types = None, **kwargs):
-    """Visual module typecheck target with project defaults."""
+def myorg_ts_visual_library(name, srcs, deps = [], tsconfig_types = None, **kwargs):
+    """Visual library typecheck target with project defaults."""
     _ts_project(
         name = name,
         srcs = srcs,

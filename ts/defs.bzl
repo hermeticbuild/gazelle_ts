@@ -1,6 +1,6 @@
 """Stubs for the abstract rule kinds emitted by the gazelle_ts plugin.
 
-`ts_library`, `ts_test`, `ts_visual_module`, `ts_binary`, and
+`ts_library`, `ts_test`, `ts_visual_library`, `ts_binary`, and
 `ts_bundler_config` are intentionally abstract: the plugin emits them with
 this load path, and the consumer must override each with a project-specific
 macro via `# gazelle:map_kind`. The wrappers typically forward to
@@ -26,7 +26,7 @@ add to your root BUILD:
 
     # gazelle:map_kind ts_library         <macro> <load_path>
     # gazelle:map_kind ts_test            <macro> <load_path>
-    # gazelle:map_kind ts_visual_module   <macro> <load_path>
+    # gazelle:map_kind ts_visual_library   <macro> <load_path>
     # gazelle:map_kind ts_binary          <macro> <load_path>
     # gazelle:map_kind ts_bundler_config  <macro> <load_path>
 
@@ -48,8 +48,8 @@ def ts_library(name, srcs, **_kwargs):
 def ts_test(name, srcs, deps = [], data = [], **_kwargs):
     _abstract_kind("ts_test", name, srcs + deps + data)
 
-def ts_visual_module(name, srcs, deps = [], **_kwargs):
-    _abstract_kind("ts_visual_module", name, srcs + deps)
+def ts_visual_library(name, srcs, deps = [], **_kwargs):
+    _abstract_kind("ts_visual_library", name, srcs + deps)
 
 def ts_binary(name, data = None, **_kwargs):
     _abstract_kind("ts_binary", name, data or [])
