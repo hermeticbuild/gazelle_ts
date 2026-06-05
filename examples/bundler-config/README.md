@@ -45,11 +45,12 @@ Note: `vite`, `vitest`, `@vitejs/plugin-react`, `tailwindcss` are **not** on `:l
 
 ## Map_kind is required
 
-All three gazelle-emitted kinds (`ts_library`, `ts_test`, `ts_bundler_config`) are abstract — gazelle_ts deliberately doesn't take a transitive `aspect_rules_ts` dependency. Each consumer wires their own concrete macros:
+The gazelle-emitted TypeScript kinds (`ts_library`, `ts_test`, `ts_visual_module`, `ts_bundler_config`) are abstract — gazelle_ts deliberately doesn't take a transitive `aspect_rules_ts` dependency. Each consumer wires their own concrete macros:
 
 ```
 # gazelle:map_kind ts_library ts_library //tools:ts.bzl
 # gazelle:map_kind ts_test ts_test //tools:ts.bzl
+# gazelle:map_kind ts_visual_module ts_visual_module //tools:ts.bzl
 # gazelle:map_kind ts_bundler_config ts_bundler_config //tools:ts.bzl
 ```
 

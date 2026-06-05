@@ -1,0 +1,23 @@
+load("@gazelle_ts//ts:defs.bzl", "ts_library", "ts_visual_module")
+
+ts_library(
+    name = "lib",
+    srcs = ["Button.tsx"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//:node_modules/@types/react",
+        "//:node_modules/react",
+    ],
+)
+
+ts_visual_module(
+    name = "visual_module",
+    srcs = ["Button.story.tsx"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":lib",
+        "//:node_modules/@storybook/react",
+        "//:node_modules/@types/react",
+        "//:node_modules/react",
+    ],
+)

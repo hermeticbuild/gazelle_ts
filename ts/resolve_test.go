@@ -455,6 +455,52 @@ func TestResolve_MappedTsTestPopulatesTsconfigTypes(t *testing.T) {
 	}
 }
 
+func TestResolve_MappedTsVisualModulePopulatesDepsAndTsconfigTypes(t *testing.T) {
+	cfg := newTsConfig()
+	c := config.New()
+	c.Exts[languageName] = cfg
+	c.KindMap = map[string]config.MappedKind{}
+	c.KindMap[KindTsVisualModule] = config.MappedKind{
+		FromKind: KindTsVisualModule,
+		KindName: "myorg_ts_visual_module",
+		KindLoad: "//tools:ts.bzl",
+	}
+	resolveConfigurer := &gazelleresolve.Configurer{}
+	resolveConfigurer.RegisterFlags(flag.NewFlagSet("test", flag.ContinueOnError), "", c)
+	resolveConfigurer.Configure(c, "", nil)
+
+	lang := &tsLang{
+		packageDeps:       map[string]bool{"@storybook/react": true, "@types/node": true},
+		subpathImportsMap: map[string][]string{},
+	}
+	r := rule.NewRule("myorg_ts_visual_module", "web_visual_module")
+	r.SetAttr("srcs", []string{"Button.story.tsx"})
+	r.SetAttr("deps", []string{":web"})
+	lang.Resolve(
+		c,
+		nil,
+		nil,
+		r,
+		ImportData{
+			Imports: []ImportStatement{
+				{ImportPath: "@storybook/react"},
+				{ImportPath: "node:path"},
+			},
+		},
+		label.Label{Pkg: "apps/web", Name: "web_visual_module"},
+	)
+
+	if got, want := r.AttrStrings("tsconfig_types"), []string{"node"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("tsconfig_types = %v, want %v", got, want)
+	}
+	if got, want := r.AttrStrings("srcs"), []string{"Button.story.tsx"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("srcs = %v, want %v", got, want)
+	}
+	if got, want := r.AttrStrings("deps"), []string{"//:node_modules/@storybook/react", "//:node_modules/@types/node", ":web"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("deps = %v, want %v", got, want)
+	}
+}
+
 func TestResolve_TsTestPreservesExplicitTsconfigTypes(t *testing.T) {
 	cfg := newTsConfig()
 	c := config.New()

@@ -17,3 +17,16 @@ def ts_library(name, srcs, tsconfig_types = None, **kwargs):
 
 def ts_test(name, srcs, deps = [], data = [], tsconfig_types = None, **kwargs):
     js_test(name = name, data = srcs + deps + data, entry_point = srcs[0], **kwargs)
+
+def ts_visual_module(name, srcs, deps = [], tsconfig_types = None, **kwargs):
+    ts_project(
+        name = name,
+        srcs = srcs,
+        deps = deps,
+        composite = True,
+        declaration = True,
+        declaration_map = True,
+        source_map = True,
+        tsconfig = "//:tsconfig",
+        **kwargs
+    )
