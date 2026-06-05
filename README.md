@@ -6,7 +6,7 @@ import extractor that powers it through cgo.
 Built on **Bazel 8.5+ (bzlmod)** with
 [`rules_rs`](https://github.com/dzbarsky/rules_rs) for the Rust side and
 `aspect_rules_ts` / `aspect_rules_js` in the examples. CI tests the repo with
-Bazel 8.5.1 and 9.0.0.
+Bazel 9.0.0, and release validation covers Bazel 8.5.1 and 9.0.0.
 
 - [User Guide](#user-guide)
 - [Supported Directives](#supported-directives)
@@ -484,16 +484,15 @@ Gazelle calls the language in three main phases:
    [ts/resolve.go](ts/resolve.go)): register package import specs in the
    RuleIndex, then turn extracted imports and globals into Bazel labels.
 
-The Rust crate at [crates/import_extractor](crates/import_extractor) is built
-as a `rust_static_library` and linked into the Go language extension via
-`cdeps`. Calls into it use a plugin-namespaced C ABI:
-`gazelle_ts_ie_dispatch` / `gazelle_ts_ie_free`.
+The Rust crate at [crates/import_extractor](crates/import_extractor) is linked
+into the Go language extension via `cdeps`. Calls into it use a
+plugin-namespaced C ABI: `gazelle_ts_ie_dispatch` / `gazelle_ts_ie_free`.
 
 ## Repository Layout
 
 ```text
 crates/
-  import_extractor/          Rust staticlib for TS import/global extraction
+  import_extractor/          Rust crate for TS import/global extraction
 ts/                          Go Gazelle language extension
 examples/                    Self-contained Bazel workspaces
   basic/                     One TS package, npm deps, .ts/.tsx, smoke test
@@ -531,5 +530,6 @@ directly:
 bazel test //...
 ```
 
-Tests in `crates/` and `ts/` run on linux-x86_64 and macos-arm64 in CI. The
-example workspaces run on linux-x86_64 only.
+Full tests in `crates/` and `ts/` run on linux-x86_64 in CI. macos-arm64 is a
+smoke host only, while darwin target analysis runs from Linux via
+`examples/cross_compile`. The example workspaces run on linux-x86_64 only.

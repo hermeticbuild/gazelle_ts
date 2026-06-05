@@ -1,7 +1,7 @@
 load("@rules_go//go:def.bzl", "go_test")
 load("@rules_rs//rs:rust_test.bzl", "rust_test")
 load("@rules_rust_prost//:defs.bzl", "rust_prost_library")
-load(":opt.bzl", "cgo_rust_library", "opt_rust_static_library")
+load(":opt.bzl", "cgo_rust_library", "cgo_rust_static_library")
 
 # proto_library lives at //proto:import_extractor_proto so that //ts/proto can
 # depend on it without loading any rules_rs symbols.
@@ -41,12 +41,9 @@ cgo_rust_library(
     deps = _LIB_DEPS,
 )
 
-# staticlib variant — linked into the gazelle plugin's go_library via cgo.
-# Provides CcInfo so it can be passed directly as `cdeps` on go_library.
-# opt_rust_static_library is a with_cfg wrapper that pins compilation_mode
-# and the release rustc flags so the staticlib is optimized regardless of
-# the consumer's bazel invocation (see opt.bzl).
-opt_rust_static_library(
+# staticlib variant used by the symbol test. This intentionally follows the
+# caller's compilation mode so wildcard PR tests do not pay release opt/LTO.
+cgo_rust_static_library(
     name = "import_extractor_static",
     srcs = _LIB_SRCS,
     edition = "2021",
@@ -59,6 +56,28 @@ genrule(
     srcs = [":import_extractor_static"],
     outs = ["ffi_symbols_nm.txt"],
     cmd = "nm -g $(location :import_extractor_static) > $@ 2>&1 || true",
+)
+
+genrule(
+    name = "ffi_symbols_check",
+    srcs = [":import_extractor_static"],
+    outs = ["ffi_symbols_check.txt"],
+    cmd = """
+set -eu
+nm -g $(location :import_extractor_static) > "$@" 2>&1 || true
+for symbol in gazelle_ts_ie_dispatch gazelle_ts_ie_free; do
+    if ! grep -Eq "(^|[[:space:]])_?$$symbol$$" "$@"; then
+        echo "missing exported symbol $$symbol in $(location :import_extractor_static)" >&2
+        exit 1
+    fi
+done
+for symbol in ie_dispatch ie_free; do
+    if grep -Eq "(^|[[:space:]])_?$$symbol$$" "$@"; then
+        echo "generic exported symbol $$symbol must not be present in $(location :import_extractor_static)" >&2
+        exit 1
+    fi
+done
+""",
 )
 
 rust_test(

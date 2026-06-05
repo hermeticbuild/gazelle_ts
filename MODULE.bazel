@@ -23,10 +23,9 @@ bazel_dep(name = "llvm", version = "0.7.6")
 # SDKROOT injection. Validated by examples/cross_compile.
 register_toolchains("@llvm//toolchain:all")
 
-# rules_rust facade — exposes @rules_rust so .bazelrc's --config=opt and
-# the with_cfg wrapper in //crates/import_extractor:opt.bzl can reference
-# @rules_rust//:extra_rustc_flags. Also keeps rules_rs's internal loads
-# resolving against the same canonical repo for toolchain_type matching.
+# rules_rust facade — exposes @rules_rust so .bazelrc's --config=opt can
+# reference @rules_rust//:extra_rustc_flags. Also keeps rules_rs's internal
+# loads resolving against the same canonical repo for toolchain_type matching.
 rules_rust = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
 use_repo(rules_rust, "rules_rust")
 

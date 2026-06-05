@@ -5,8 +5,8 @@ Rust 1.95's allocator symbols are mangled, so the rlib must be compiled
 with rules_rust's matching allocator-library setting. Pinning that here
 keeps consumers and BCR from needing a top-level command-line flag.
 
-The staticlib wrapper also forces compilation_mode=opt and the release
-rustc flags (panic=abort, codegen-units=1, thin LTO, strip).
+The staticlib wrapper intentionally follows the caller's compilation mode.
+Release validation selects optimized mode with `--config=opt`.
 """
 
 load("@rules_rs//rs:rust_library.bzl", "rust_library")
@@ -22,19 +22,8 @@ cgo_rust_library, _cgo_rust_library_internal = (
         .build()
 )
 
-opt_rust_static_library, _opt_rust_static_library_internal = (
+cgo_rust_static_library, _cgo_rust_static_library_internal = (
     with_cfg(rust_static_library)
-        .set("compilation_mode", "opt")
         .set(_ALLOCATOR_MANGLED_SYMBOLS, True)
-        .set(
-        Label("@rules_rust//:extra_rustc_flags"),
-        [
-            "-Ccodegen-units=1",
-            "-Cpanic=abort",
-            "-Cstrip=symbols",
-            "-Clto=thin",
-            "-Cembed-bitcode=yes",
-        ],
-    )
         .build()
 )

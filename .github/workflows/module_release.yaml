@@ -7,12 +7,14 @@ name: module-release
 # Rust subprocess binary out of release.yaml). Both can coexist on the repo —
 # this workflow only fires for module tags.
 #
-# The `release` job uses bazel-contrib's reusable release_ruleset workflow,
-# which runs `bazel test //...`, calls `.github/workflows/release_prep.sh` to
-# generate the source tarball + release notes, produces sigstore build
-# provenance for each archive, and creates the GitHub release with the files,
-# notes, and `.intoto.jsonl` attestations attached. publish-to-bcr then reads
-# those attestations as part of the BCR submission.
+# The `validate` job runs release-only optimized staticlib validation and
+# platform smoke. The `release` job then uses bazel-contrib's reusable
+# release_ruleset workflow, which runs `bazel test //...`, calls
+# `.github/workflows/release_prep.sh` to generate the source tarball + release
+# notes, produces sigstore build provenance for each archive, and creates the
+# GitHub release with the files, notes, and `.intoto.jsonl` attestations
+# attached. publish-to-bcr then reads those attestations as part of the BCR
+# submission.
 #
 # Prerequisites for the BCR submission to succeed:
 #   1. A fork of github.com/bazelbuild/bazel-central-registry under the org
@@ -39,7 +41,13 @@ permissions:
   id-token: write
 
 jobs:
+  validate:
+    uses: ./.github/workflows/release_validation.yaml
+    with:
+      ref: ${{ inputs.tag || github.ref_name }}
+
   release:
+    needs: validate
     uses: bazel-contrib/.github/.github/workflows/release_ruleset.yaml@v7.4.0
     with:
       release_files: gazelle_ts-*.tar.gz

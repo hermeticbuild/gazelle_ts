@@ -1,0 +1,111 @@
+name: release-validation
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Git ref to validate.'
+        type: string
+        required: false
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to validate. Defaults to the selected workflow ref.'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  optimized-staticlib:
+    name: opt staticlib (bazel ${{ matrix.bazel }}, linux-x86_64)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        bazel: ["8.5.1", "9.0.0"]
+    env:
+      USE_BAZEL_VERSION: ${{ matrix.bazel }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-opt-staticlib-bazel${{ matrix.bazel }}
+          repository-cache: true
+
+      - name: validate optimized Rust staticlib symbols
+        run: bazelisk build --config=opt //crates/import_extractor:ffi_symbols_check
+
+  smoke:
+    name: ${{ matrix.platform }} smoke (bazel ${{ matrix.bazel }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-latest
+            bazel: "8.5.1"
+          - platform: linux-x86_64
+            runner: ubuntu-latest
+            bazel: "9.0.0"
+          - platform: macos-arm64
+            runner: macos-latest
+            bazel: "9.0.0"
+    env:
+      USE_BAZEL_VERSION: ${{ matrix.bazel }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-${{ matrix.platform }}-smoke-bazel${{ matrix.bazel }}
+          repository-cache: true
+
+      - name: examples/basic gazelle smoke
+        working-directory: examples/basic
+        run: bazelisk run //:gazelle -- update -mode=diff
+
+  darwin-cross-compile:
+    name: darwin cross-compile analyze (bazel ${{ matrix.bazel }}, linux-x86_64)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        bazel: ["8.5.1", "9.0.0"]
+    env:
+      USE_BAZEL_VERSION: ${{ matrix.bazel }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-darwin-cross-compile-bazel${{ matrix.bazel }}
+          repository-cache: true
+
+      - name: analyze darwin targets from linux
+        working-directory: examples/cross_compile
+        run: |
+          set -euo pipefail
+          for triple in aarch64-apple-darwin x86_64-apple-darwin; do
+            echo "::group::--platforms=$triple"
+            bazelisk build --nobuild "--platforms=@rules_rs//rs/platforms:$triple" //:gazelle_bin
+            echo "::endgroup::"
+          done

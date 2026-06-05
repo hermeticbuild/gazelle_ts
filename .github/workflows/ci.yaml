@@ -11,33 +11,13 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Emits the platform matrix once. macOS is dropped on pull_request runs
-  # (saves runner minutes) but stays for push to main and the merge queue.
-  matrix:
-    name: matrix
-    runs-on: ubuntu-latest
-    outputs:
-      platforms: ${{ steps.set.outputs.platforms }}
-    steps:
-      - id: set
-        env:
-          EVENT: ${{ github.event_name }}
-        run: |
-          if [ "$EVENT" = "pull_request" ]; then
-            echo 'platforms=[{"platform":"linux-x86_64","runner":"ubuntu-latest"}]' >> "$GITHUB_OUTPUT"
-          else
-            echo 'platforms=[{"platform":"linux-x86_64","runner":"ubuntu-latest"},{"platform":"macos-arm64","runner":"macos-latest"}]' >> "$GITHUB_OUTPUT"
-          fi
-
   bazel-test:
-    needs: matrix
-    name: bazel ${{ matrix.bazel }} test (${{ matrix.os.platform }})
-    runs-on: ${{ matrix.os.runner }}
+    name: bazel ${{ matrix.bazel }} test (linux-x86_64)
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(needs.matrix.outputs.platforms) }}
-        bazel: ["8.5.1", "9.0.0"]
+        bazel: ["9.0.0"]
     env:
       USE_BAZEL_VERSION: ${{ matrix.bazel }}
 
@@ -48,16 +28,41 @@ jobs:
         uses: bazel-contrib/setup-bazel@0.19.0
         with:
           bazelisk-cache: true
-          disk-cache: ${{ github.workflow }}-${{ matrix.os.platform }}-bazel${{ matrix.bazel }}
+          disk-cache: ${{ github.workflow }}-linux-x86_64-bazel${{ matrix.bazel }}
           repository-cache: true
 
       - name: bazel test //...
         run: bazelisk test //...
 
-  # Examples are linux-only — they exercise the BUILD-generation path and
-  # don't add platform-specific coverage worth the macOS runner cost.
+  # macOS is a smoke host only. Compile-heavy validation stays on Linux, with
+  # the darwin target surface covered by the cross_compile analysis job below.
+  macos-smoke:
+    name: macos smoke (bazel 9.0.0)
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: macos-latest
+    env:
+      USE_BAZEL_VERSION: 9.0.0
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-macos-arm64-smoke-bazel9.0.0
+          repository-cache: true
+
+      - name: examples/basic gazelle smoke
+        working-directory: examples/basic
+        run: bazelisk run //:gazelle -- update -mode=diff
+
+  # The full example suite is linux-only — it exercises the BUILD-generation
+  # path and doesn't add platform-specific coverage worth the macOS runner cost.
+  # Release validation covers the supported Bazel version matrix; regular CI
+  # keeps PR feedback on the current Bazel line.
   # Each example runs as its own step (rather than a matrix entry) so the
-  # whole set shares one runner and one Bazel install per bazel version.
+  # whole set shares one runner and one Bazel install.
   # `if: ${{ !cancelled() }}` keeps later steps running after a failure so
   # we still see the full matrix of which examples are broken.
   examples:
@@ -66,7 +71,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        bazel: ["8.5.1", "9.0.0"]
+        bazel: ["9.0.0"]
     env:
       USE_BAZEL_VERSION: ${{ matrix.bazel }}
 
@@ -119,7 +124,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        bazel: ["8.5.1", "9.0.0"]
+        bazel: ["9.0.0"]
     env:
       USE_BAZEL_VERSION: ${{ matrix.bazel }}
 

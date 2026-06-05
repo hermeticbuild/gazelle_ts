@@ -51,10 +51,15 @@ src/
 
 ```
 bazel build //crates/import_extractor:import_extractor_static
-bazel test  //crates/import_extractor:all
+bazel build --config=opt //crates/import_extractor:ffi_symbols_check
+bazel test  //crates/import_extractor:test
+bazel test  //crates/import_extractor:ffi_symbols_test
 ```
 
-The `import_extractor_static` target produces a `.a` with `CcInfo`, which `//ts:ts` consumes via `cdeps` on its `go_library`.
+The `import_extractor` target is the normal cgo path consumed by `//ts:ts`. The
+`import_extractor_static` target follows the caller's compilation mode for
+normal symbol tests. Release validation builds `ffi_symbols_check` with
+`--config=opt`.
 
 ## Performance notes
 
