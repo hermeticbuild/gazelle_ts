@@ -106,6 +106,23 @@ func (l *tsLang) Resolve(
 		tsconfigTypes = append(tsconfigTypes, testGlobalResolved.tsconfigTypes...)
 		setOrDelete(r, "tsconfig_types", tsconfigTypes)
 
+	case kindMatches(c, r.Kind(), KindTsVisualLibrary):
+		// ts_visual_library mirrors a compile target for Storybook-only entrypoints:
+		// srcs are visual library files, deps include the sibling lib plus
+		// imports from those files, and no runtime data attr is managed.
+		resolved := l.resolveImportsToDeps(c, importData.Imports, from, ix, cfg)
+		globalResolved := resolveGlobalsToDeps(importData.Globals, cfg)
+		existing := r.AttrStrings("deps")
+		all := append([]string{}, existing...)
+		all = append(all, resolved.external...)
+		all = append(all, resolved.internal...)
+		all = append(all, globalResolved.external...)
+		setOrDelete(r, "deps", all)
+		tsconfigTypes := append([]string{}, r.AttrStrings("tsconfig_types")...)
+		tsconfigTypes = append(tsconfigTypes, resolved.tsconfigTypes...)
+		tsconfigTypes = append(tsconfigTypes, globalResolved.tsconfigTypes...)
+		setOrDelete(r, "tsconfig_types", tsconfigTypes)
+
 	case kindMatches(c, r.Kind(), KindJsBinary), kindMatches(c, r.Kind(), KindTsBinary):
 		// We don't generate binary rules — only fill in their `data` attr
 		// based on what their entry_point/srcs import. The user's existing

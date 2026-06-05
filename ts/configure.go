@@ -18,8 +18,10 @@ const (
 	directiveEnabled              = "ts_enabled"
 	directiveLibraryName          = "ts_library_name"
 	directiveTestName             = "ts_test_name"
+	directiveVisualLibraryName    = "ts_visual_library_name"
 	directiveVisibility           = "ts_visibility"
 	directiveTestPattern          = "ts_test_pattern"
+	directiveVisualLibraryPattern = "ts_visual_library_pattern"
 	directiveExtension            = "ts_extension"
 	directiveNpmLinkPattern       = "ts_npm_link_pattern"
 	directiveTestData             = "ts_test_data"
@@ -41,8 +43,10 @@ func (l *tsLang) KnownDirectives() []string {
 		directiveEnabled,
 		directiveLibraryName,
 		directiveTestName,
+		directiveVisualLibraryName,
 		directiveVisibility,
 		directiveTestPattern,
+		directiveVisualLibraryPattern,
 		directiveExtension,
 		directiveNpmLinkPattern,
 		directiveTestData,
@@ -89,6 +93,10 @@ func applyDirective(cfg *tsConfig, d rule.Directive) {
 		if val != "" {
 			cfg.testName = val
 		}
+	case directiveVisualLibraryName:
+		if val != "" {
+			cfg.visualLibraryName = val
+		}
 	case directiveVisibility:
 		if val != "" {
 			cfg.visibility = splitFields(val)
@@ -96,6 +104,10 @@ func applyDirective(cfg *tsConfig, d rule.Directive) {
 	case directiveTestPattern:
 		if val != "" {
 			cfg.testPatterns = appendUnique(cfg.testPatterns, val)
+		}
+	case directiveVisualLibraryPattern:
+		if val != "" {
+			cfg.visualLibraryPatterns = appendUnique(cfg.visualLibraryPatterns, val)
 		}
 	case directiveExtension:
 		if val != "" {

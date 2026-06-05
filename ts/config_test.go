@@ -23,6 +23,7 @@ func TestApplyDirective_Strings(t *testing.T) {
 	cfg := newTsConfig()
 	applyDirective(cfg, rule.Directive{Key: directiveLibraryName, Value: "src"})
 	applyDirective(cfg, rule.Directive{Key: directiveTestName, Value: "spec"})
+	applyDirective(cfg, rule.Directive{Key: directiveVisualLibraryName, Value: "visuals"})
 	applyDirective(cfg, rule.Directive{Key: directiveNpmLinkPattern, Value: "//pnpm:node_modules/{pkg}"})
 
 	if cfg.libraryName != "src" {
@@ -30,6 +31,9 @@ func TestApplyDirective_Strings(t *testing.T) {
 	}
 	if cfg.testName != "spec" {
 		t.Errorf("testName = %q", cfg.testName)
+	}
+	if cfg.visualLibraryName != "visuals" {
+		t.Errorf("visualLibraryName = %q", cfg.visualLibraryName)
 	}
 	if cfg.npmLinkPattern != "//pnpm:node_modules/{pkg}" {
 		t.Errorf("npmLinkPattern = %q", cfg.npmLinkPattern)
@@ -49,6 +53,7 @@ func TestApplyDirective_AppendDirectives(t *testing.T) {
 	cfg := newTsConfig()
 	// Test patterns and extensions append rather than replace.
 	applyDirective(cfg, rule.Directive{Key: directiveTestPattern, Value: "*.spec.ts"})
+	applyDirective(cfg, rule.Directive{Key: directiveVisualLibraryPattern, Value: "*.stories.tsx"})
 	applyDirective(cfg, rule.Directive{Key: directiveExtension, Value: ".mts"})
 	applyDirective(cfg, rule.Directive{Key: directiveTestData, Value: "//:fixtures"})
 	applyDirective(cfg, rule.Directive{Key: directiveTsconfigTypes, Value: "node react"})
@@ -56,6 +61,9 @@ func TestApplyDirective_AppendDirectives(t *testing.T) {
 
 	if !contains(cfg.testPatterns, "*.spec.ts") {
 		t.Errorf("testPatterns missing *.spec.ts: %v", cfg.testPatterns)
+	}
+	if !contains(cfg.visualLibraryPatterns, "*.stories.tsx") {
+		t.Errorf("visualLibraryPatterns missing *.stories.tsx: %v", cfg.visualLibraryPatterns)
 	}
 	if !contains(cfg.extensions, ".mts") {
 		t.Errorf("extensions missing .mts: %v", cfg.extensions)
@@ -72,6 +80,7 @@ func TestApplyDirective_AppendDirectives(t *testing.T) {
 
 	// Re-applying the same value should not duplicate.
 	applyDirective(cfg, rule.Directive{Key: directiveTestPattern, Value: "*.spec.ts"})
+	applyDirective(cfg, rule.Directive{Key: directiveVisualLibraryPattern, Value: "*.stories.tsx"})
 	applyDirective(cfg, rule.Directive{Key: directiveTsconfigTypes, Value: "node"})
 	count := 0
 	for _, p := range cfg.testPatterns {
@@ -81,6 +90,15 @@ func TestApplyDirective_AppendDirectives(t *testing.T) {
 	}
 	if count != 1 {
 		t.Errorf("expected 1 occurrence of *.spec.ts, got %d", count)
+	}
+	count = 0
+	for _, p := range cfg.visualLibraryPatterns {
+		if p == "*.stories.tsx" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected 1 occurrence of *.stories.tsx, got %d", count)
 	}
 	count = 0
 	for _, typ := range cfg.tsconfigTypes {
@@ -97,12 +115,14 @@ func TestClone_Independent(t *testing.T) {
 	parent := newTsConfig()
 	parent.libraryName = "lib"
 	parent.testPatterns = append(parent.testPatterns, "*.spec.ts")
+	parent.visualLibraryPatterns = append(parent.visualLibraryPatterns, "*.stories.tsx")
 	parent.tsconfigTypes = append(parent.tsconfigTypes, "node")
 	parent.globalResolves["process"] = "//:node_modules/@types/node"
 
 	child := parent.clone()
 	child.libraryName = "src"
 	child.testPatterns = append(child.testPatterns, "**/__tests__/**")
+	child.visualLibraryPatterns = append(child.visualLibraryPatterns, "**/*.storybook.tsx")
 	child.tsconfigTypes = append(child.tsconfigTypes, "react")
 	child.globalResolves["chrome"] = "//:node_modules/@types/chrome"
 
@@ -111,6 +131,9 @@ func TestClone_Independent(t *testing.T) {
 	}
 	if contains(parent.testPatterns, "**/__tests__/**") {
 		t.Errorf("parent testPatterns mutated: %v", parent.testPatterns)
+	}
+	if contains(parent.visualLibraryPatterns, "**/*.storybook.tsx") {
+		t.Errorf("parent visualLibraryPatterns mutated: %v", parent.visualLibraryPatterns)
 	}
 	if contains(parent.tsconfigTypes, "react") {
 		t.Errorf("parent tsconfigTypes mutated: %v", parent.tsconfigTypes)

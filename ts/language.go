@@ -1,17 +1,19 @@
 // Package ts implements a Gazelle language extension for TypeScript packages.
 //
-// It generates three abstract rule kinds (all loaded from
+// It generates abstract rule kinds (all loaded from
 // @gazelle_ts//ts:defs.bzl, with filegroup fallbacks that print a warning
 // when no map_kind is configured):
 //
 //   - ts_library          for libraries
 //   - ts_test             for tests (assumes a multi-entry runner; no entry_point)
+//   - ts_visual_library  for visual files (`*.story.tsx`, `*.visual.tsx`)
 //   - ts_bundler_config   for files matched by ts_bundler_config_pattern
 //
 // Consumers wire each to a concrete macro:
 //
 //	# gazelle:map_kind ts_library         myrepo_ts_library //tools:ts.bzl
 //	# gazelle:map_kind ts_test            vitest_test       //tools:ts.bzl
+//	# gazelle:map_kind ts_visual_library   myrepo_ts_visual_library //tools:ts.bzl
 //	# gazelle:map_kind ts_bundler_config  myrepo_bundler_config //tools:ts.bzl
 //
 // The plugin operates in Gazelle's three-phase pipeline:

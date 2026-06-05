@@ -36,20 +36,21 @@ type ImportData struct {
 	TestGlobals []GlobalReference // test-file global references
 }
 
-// GenerateRules walks a directory's files, partitions them into source vs.
-// test, parses imports via the Rust subprocess, and emits library + test
-// rules. The merge engine reconciles the result with the existing BUILD
-// content using KindInfo from kinds.go.
+// GenerateRules walks a directory's files, partitions them into source, test,
+// visual-library, and tooling-config roles, parses imports via the Rust
+// subprocess, and emits rules. The merge engine reconciles the result with
+// the existing BUILD content using KindInfo from kinds.go.
 func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	cfg, ok := args.Config.Exts[languageName].(*tsConfig)
 	if !ok || !cfg.enabled {
 		return language.GenerateResult{}
 	}
 
-	libName, testName := resolveRuleNames(cfg, args.Rel)
+	libName, testName, visualLibraryName := resolveRuleNames(cfg, args.Rel)
 	parts := collectSrcs(args.RegularFiles, cfg)
 	libSrcs := parts.lib
 	testSrcs := parts.test
+	visualLibrarySrcs := parts.visualLibrary
 
 	var tsFiles []string
 	for _, f := range args.RegularFiles {
@@ -104,7 +105,9 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	}
 
 	var sourceImports, testImports []ImportStatement
+	var visualLibraryImports []ImportStatement
 	var sourceGlobals, testGlobals []GlobalReference
+	var visualLibraryGlobals []GlobalReference
 	bundlerImportsBySpec := map[int][]ImportStatement{}
 	bundlerGlobalsBySpec := map[int][]GlobalReference{}
 	allRefs := map[string]ExtractedReferences{}
@@ -116,11 +119,16 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			}
 			fullPath := filepath.Join(args.Dir, f)
 			refs := allRefs[fullPath]
-			// Bundler-config classification wins over test classification —
-			// matches collectSrcs.
+			// Bundler-config classification wins over story/test
+			// classification — matches collectSrcs.
 			if idx, ok := matchBundlerConfigSpec(f, cfg); ok {
 				bundlerImportsBySpec[idx] = append(bundlerImportsBySpec[idx], refs.Imports...)
 				bundlerGlobalsBySpec[idx] = append(bundlerGlobalsBySpec[idx], refs.Globals...)
+				continue
+			}
+			if isVisualLibraryFile(f, cfg) {
+				visualLibraryImports = append(visualLibraryImports, refs.Imports...)
+				visualLibraryGlobals = append(visualLibraryGlobals, refs.Globals...)
 				continue
 			}
 			if isTestFile(f, cfg) {
@@ -133,7 +141,7 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		}
 	}
 
-	if len(libSrcs) == 0 && len(testSrcs) == 0 && len(binaries) == 0 && len(parts.bundlerConfigs) == 0 {
+	if len(libSrcs) == 0 && len(testSrcs) == 0 && len(visualLibrarySrcs) == 0 && len(binaries) == 0 && len(parts.bundlerConfigs) == 0 {
 		return language.GenerateResult{}
 	}
 
@@ -175,6 +183,25 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		genImports = append(genImports, ImportData{
 			TestImports: testImports,
 			TestGlobals: testGlobals,
+		})
+	}
+
+	if len(visualLibrarySrcs) > 0 {
+		// Emit the abstract ts_visual_library kind. Visual libraries typecheck
+		// separately from the package library so Storybook-only imports don't
+		// leak into the library closure, while deps still include the sibling lib.
+		r := rule.NewRule(KindTsVisualLibrary, visualLibraryName)
+		r.SetAttr("srcs", visualLibrarySrcs)
+		if len(cfg.visibility) > 0 {
+			r.SetAttr("visibility", cfg.visibility)
+		}
+		if len(libSrcs) > 0 {
+			r.SetAttr("deps", []string{":" + libName})
+		}
+		genRules = append(genRules, r)
+		genImports = append(genImports, ImportData{
+			Imports: visualLibraryImports,
+			Globals: visualLibraryGlobals,
 		})
 	}
 
@@ -246,19 +273,21 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	}
 }
 
-// resolveRuleNames returns the (library, test) rule names for a directory,
-// applying the directive overrides if set or falling back to package-name-
-// derived defaults.
+// resolveRuleNames returns the (library, test, visual library) rule names for
+// a directory, applying the directive overrides if set or falling back to
+// package-name-derived defaults.
 //
 // Defaults — given a package at //apps/web (rel = "apps/web"):
 //
 //	library: "web"      → //apps/web:web (Bazel shortens to //apps/web)
-//	test:    "web_test" → //apps/web:web_test
+//	test:    "web_test"  → //apps/web:web_test
+//	visual library: "web_visual_library" → //apps/web:web_visual_library
 //
-// Both can be overridden per-tree via the ts_library_name / ts_test_name
-// directives. At the repo root (rel = ""), where there's no basename to
-// derive from, library falls back to "lib" and test to "test".
-func resolveRuleNames(cfg *tsConfig, rel string) (libName, testName string) {
+// They can be overridden per-tree via the ts_library_name / ts_test_name /
+// ts_visual_library_name directives. At the repo root (rel = ""), where there's no
+// basename to derive from, library falls back to "lib", test to "test", and
+// visual library to "visual_library".
+func resolveRuleNames(cfg *tsConfig, rel string) (libName, testName, visualLibraryName string) {
 	base := filepath.Base(rel)
 	if base == "." || base == "" || base == "/" {
 		base = ""
@@ -281,6 +310,15 @@ func resolveRuleNames(cfg *tsConfig, rel string) (libName, testName string) {
 			testName = "test"
 		}
 	}
+
+	visualLibraryName = cfg.visualLibraryName
+	if visualLibraryName == "" {
+		if base != "" {
+			visualLibraryName = base + "_visual_library"
+		} else {
+			visualLibraryName = "visual_library"
+		}
+	}
 	return
 }
 
@@ -299,7 +337,19 @@ func isTypeScriptFile(name string, cfg *tsConfig) bool {
 // (matches within a path segment).
 func isTestFile(name string, cfg *tsConfig) bool {
 	for _, pat := range cfg.testPatterns {
-		if matchTestPattern(pat, name) {
+		if matchPathPattern(pat, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// isVisualLibraryFile matches the file path against configured visual-library
+// patterns. Defaults keep `*.story.tsx` and `*.visual.tsx` out of the library
+// target.
+func isVisualLibraryFile(name string, cfg *tsConfig) bool {
+	for _, pat := range cfg.visualLibraryPatterns {
+		if matchPathPattern(pat, name) {
 			return true
 		}
 	}
@@ -309,24 +359,30 @@ func isTestFile(name string, cfg *tsConfig) bool {
 // matchTestPattern matches the same doublestar glob syntax used by the other
 // path-pattern directives. Invalid in-progress patterns simply don't match.
 func matchTestPattern(pattern, name string) bool {
+	return matchPathPattern(pattern, name)
+}
+
+func matchPathPattern(pattern, name string) bool {
 	ok, err := doublestar.Match(pattern, name)
 	return err == nil && ok
 }
 
 // partitionedSrcs is the result of slicing a directory's TS files across the
-// three roles a file can play: library source, test source, or bundler-config
-// (one bucket per matched ts_bundler_config_pattern spec, keyed by spec
-// index). Each slice is sorted for deterministic BUILD output.
+// four roles a file can play: library source, test source, visual-library
+// source, or bundler-config (one bucket per matched ts_bundler_config_pattern
+// spec, keyed by spec index). Each slice is sorted for deterministic BUILD
+// output.
 type partitionedSrcs struct {
 	lib            []string
 	test           []string
+	visualLibrary  []string
 	bundlerConfigs map[int][]string
 }
 
 // collectSrcs partitions the directory's files for emission. Bundler-config
-// patterns take precedence over test patterns, so a file matching both goes
-// to the bundler-config bucket — the boundary the directive enforces is
-// stronger than the lib/test split.
+// patterns take precedence over visual-library and test patterns, so a file
+// matching both goes to the bundler-config bucket — the boundary the directive
+// enforces is stronger than the normal source split.
 func collectSrcs(regularFiles []string, cfg *tsConfig) partitionedSrcs {
 	out := partitionedSrcs{bundlerConfigs: map[int][]string{}}
 	for _, f := range regularFiles {
@@ -337,6 +393,10 @@ func collectSrcs(regularFiles []string, cfg *tsConfig) partitionedSrcs {
 			out.bundlerConfigs[idx] = append(out.bundlerConfigs[idx], f)
 			continue
 		}
+		if isVisualLibraryFile(f, cfg) {
+			out.visualLibrary = append(out.visualLibrary, f)
+			continue
+		}
 		if isTestFile(f, cfg) {
 			out.test = append(out.test, f)
 			continue
@@ -345,6 +405,7 @@ func collectSrcs(regularFiles []string, cfg *tsConfig) partitionedSrcs {
 	}
 	sort.Strings(out.lib)
 	sort.Strings(out.test)
+	sort.Strings(out.visualLibrary)
 	for k, v := range out.bundlerConfigs {
 		sort.Strings(v)
 		out.bundlerConfigs[k] = v

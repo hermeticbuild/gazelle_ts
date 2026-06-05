@@ -15,10 +15,10 @@ ts_config(
 
 # gazelle:ts_npm_link_pattern //:node_modules/{pkg}
 
-# All three gazelle-emitted kinds (ts_library, ts_test, ts_bundler_config)
-# are abstract; wire them to our project-specific wrappers.
+# Gazelle-emitted abstract kinds are wired to project-specific wrappers.
 # gazelle:map_kind ts_library ts_library //tools:ts.bzl
 # gazelle:map_kind ts_test ts_test //tools:ts.bzl
+# gazelle:map_kind ts_visual_library ts_visual_library //tools:ts.bzl
 
 gazelle_binary(
     name = "gazelle_bin",

@@ -1,7 +1,7 @@
 """Concrete macros for the abstract kinds emitted by gazelle_ts.
 
-ts_library / ts_test / ts_bundler_config all forward to ts_project /
-js_test with the project's defaults baked in.
+The abstract TypeScript compile/check kinds forward to ts_project / js_test
+with the project's defaults baked in.
 """
 
 load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
@@ -27,3 +27,6 @@ def ts_bundler_config(name, srcs, **kwargs):
 
 def ts_test(name, srcs, deps = [], data = [], tsconfig_types = None, **kwargs):
     js_test(name = name, data = srcs + deps + data, entry_point = srcs[0], **kwargs)
+
+def ts_visual_library(name, srcs, deps = [], tsconfig_types = None, **kwargs):
+    _project(name = name, srcs = srcs, deps = deps, **kwargs)

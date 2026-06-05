@@ -5,10 +5,11 @@ Gazelle is told to emit these via `# gazelle:map_kind` directives in
 
     # gazelle:map_kind ts_library  myorg_ts_library //tools:ts.bzl
     # gazelle:map_kind ts_test     vitest_test      //tools:ts.bzl
+    # gazelle:map_kind ts_visual_library    myorg_ts_visual_library   //tools:ts.bzl
     # gazelle:map_kind ts_binary   myorg_ts_binary  //tools:ts.bzl
 
-The plugin emits `ts_library`, `ts_test`, and `ts_binary` as abstract
-kinds with no compile flags or entry_point — those defaults belong here.
+The plugin emits TypeScript abstract kinds with no compile flags or
+entry_point — those defaults belong here.
 
 Note: rules_js's `@npm//:vitest/package_json.bzl` re-exports the auto-
 generated bin macros under a single `bin = struct(...)` symbol — so the
@@ -40,6 +41,20 @@ def myorg_ts_binary(name, tsconfig_types = None, **kwargs):
     whatever house style the binaries should run with. The plugin
     auto-manages `data` from the rule's entry_point/srcs imports."""
     _js_binary(name = name, **kwargs)
+
+def myorg_ts_visual_library(name, srcs, deps = [], tsconfig_types = None, **kwargs):
+    """Visual library typecheck target with project defaults."""
+    _ts_project(
+        name = name,
+        srcs = srcs,
+        deps = deps,
+        composite = True,
+        declaration = True,
+        declaration_map = True,
+        source_map = True,
+        tsconfig = "//:tsconfig",
+        **kwargs
+    )
 
 # vitest_test auto-discovers test files via the runner's own config. The
 # generated ts_test shape keeps entrypoints, import deps, and runtime fixtures

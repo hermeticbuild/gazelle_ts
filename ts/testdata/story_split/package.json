@@ -1,0 +1,8 @@
+{
+  "name": "story_split",
+  "dependencies": {
+    "@storybook/react": "8.0.0",
+    "@types/react": "18.0.0",
+    "react": "18.0.0"
+  }
+}

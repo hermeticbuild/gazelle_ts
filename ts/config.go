@@ -6,9 +6,10 @@ const (
 	// Empty default means "use the package's directory basename" — see
 	// resolveRuleNames in generate.go. This way //apps/web:web shortens to
 	// //apps/web, the most natural Bazel idiom.
-	defaultLibraryName    = ""
-	defaultTestName       = ""
-	defaultNpmLinkPattern = "//:node_modules/{pkg}"
+	defaultLibraryName       = ""
+	defaultTestName          = ""
+	defaultVisualLibraryName = ""
+	defaultNpmLinkPattern    = "//:node_modules/{pkg}"
 
 	// KindTsLibrary is the abstract library kind the plugin emits. Consumers
 	// must `# gazelle:map_kind ts_library <macro> <load_path>` to a concrete
@@ -21,6 +22,11 @@ const (
 	// multi-entry runner that auto-discovers from `data`. The fallback in
 	// @gazelle_ts//ts:defs.bzl is a filegroup so the BUILD still loads.
 	KindTsTest = "ts_test"
+
+	// KindTsVisualLibrary is the abstract visual-library kind. It keeps
+	// visual entrypoints out of the main library while preserving their own
+	// import deps.
+	KindTsVisualLibrary = "ts_visual_library"
 )
 
 // Default test-file patterns and source-file extensions. Patterns are matched
@@ -35,6 +41,12 @@ var (
 		"**/*.test.tsx",
 		"**/*.spec.ts",
 		"**/*.spec.tsx",
+	}
+	defaultVisualLibraryPatterns = []string{
+		"*.story.tsx",
+		"*.visual.tsx",
+		"**/*.story.tsx",
+		"**/*.visual.tsx",
 	}
 	defaultExtensions = []string{".ts", ".tsx"}
 	defaultVisibility = []string{"//visibility:public"}
@@ -52,15 +64,20 @@ var (
 type tsConfig struct {
 	enabled bool
 
-	// libraryName / testName are the names of the generated rules.
-	libraryName string
-	testName    string
+	// libraryName / testName / visualLibraryName are the generated rule names.
+	libraryName       string
+	testName          string
+	visualLibraryName string
 
 	// visibility is the list of labels emitted on the library rule.
 	visibility []string
 
 	// testPatterns: glob-style patterns deciding which files are tests.
 	testPatterns []string
+
+	// visualLibraryPatterns: glob-style patterns deciding which files become
+	// visual libraries.
+	visualLibraryPatterns []string
 
 	// extensions: file extensions treated as TypeScript source.
 	extensions []string
@@ -100,15 +117,17 @@ type bundlerConfigSpec struct {
 // newTsConfig returns a config populated with all defaults.
 func newTsConfig() *tsConfig {
 	return &tsConfig{
-		enabled:        true,
-		libraryName:    defaultLibraryName,
-		testName:       defaultTestName,
-		visibility:     append([]string(nil), defaultVisibility...),
-		testPatterns:   append([]string(nil), defaultTestPatterns...),
-		extensions:     append([]string(nil), defaultExtensions...),
-		npmLinkPattern: defaultNpmLinkPattern,
-		tsconfigTypes:  append([]string(nil), defaultTsconfigTypes...),
-		globalResolves: map[string]string{},
+		enabled:               true,
+		libraryName:           defaultLibraryName,
+		testName:              defaultTestName,
+		visualLibraryName:     defaultVisualLibraryName,
+		visibility:            append([]string(nil), defaultVisibility...),
+		testPatterns:          append([]string(nil), defaultTestPatterns...),
+		visualLibraryPatterns: append([]string(nil), defaultVisualLibraryPatterns...),
+		extensions:            append([]string(nil), defaultExtensions...),
+		npmLinkPattern:        defaultNpmLinkPattern,
+		tsconfigTypes:         append([]string(nil), defaultTsconfigTypes...),
+		globalResolves:        map[string]string{},
 	}
 }
 
@@ -118,6 +137,7 @@ func (c *tsConfig) clone() *tsConfig {
 	cp := *c
 	cp.visibility = append([]string(nil), c.visibility...)
 	cp.testPatterns = append([]string(nil), c.testPatterns...)
+	cp.visualLibraryPatterns = append([]string(nil), c.visualLibraryPatterns...)
 	cp.extensions = append([]string(nil), c.extensions...)
 	cp.testData = append([]string(nil), c.testData...)
 	cp.tsconfigTypes = append([]string(nil), c.tsconfigTypes...)

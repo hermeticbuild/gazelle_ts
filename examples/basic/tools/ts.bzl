@@ -1,8 +1,7 @@
 """Concrete macros for the abstract kinds emitted by gazelle_ts.
 
-The plugin emits ts_library / ts_test / ts_bundler_config — abstract kinds
-that we map_kind here to ts_project / js_test calls with the project's
-defaults baked in.
+The plugin emits abstract TypeScript kinds that we map_kind here to
+ts_project / js_test calls with the project's defaults baked in.
 """
 
 load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
@@ -24,3 +23,16 @@ def ts_test(name, srcs, deps = [], data = [], tsconfig_types = None, **kwargs):
     # Stock js_test needs one entry_point; generated ts_test srcs are already
     # the test entrypoints.
     js_test(name = name, data = srcs + deps + data, entry_point = srcs[0], **kwargs)
+
+def ts_visual_library(name, srcs, deps = [], tsconfig_types = None, **kwargs):
+    ts_project(
+        name = name,
+        srcs = srcs,
+        deps = deps,
+        composite = True,
+        declaration = True,
+        declaration_map = True,
+        source_map = True,
+        tsconfig = "//:tsconfig",
+        **kwargs
+    )
