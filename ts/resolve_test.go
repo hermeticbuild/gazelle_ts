@@ -647,6 +647,37 @@ func TestResolveSubpathImport_PathTargetUsesRuleIndex(t *testing.T) {
 	}
 }
 
+func TestResolveSubpathImport_PathTargetUsesPackageWildcard(t *testing.T) {
+	lang := &tsLang{
+		packageDeps: map[string]bool{},
+		subpathImportsMap: map[string][]string{
+			"#pplx/*": {"./pplx/*"},
+		},
+	}
+	c := config.New()
+	c.Exts[languageName] = newTsConfig()
+	ix := gazelleresolve.NewRuleIndex(func(r *rule.Rule, pkgRel string) gazelleresolve.Resolver {
+		if r.Kind() == KindTsLibrary {
+			return lang
+		}
+		return nil
+	})
+	ix.AddRule(c, rule.NewRule(KindTsLibrary, "component-vrt"), &rule.File{Pkg: "pplx/frontend/testing/component-vrt"})
+	ix.Finish()
+
+	got, external := lang.resolveSubpathImport(
+		"#pplx/frontend/testing/component-vrt/componentVisual.js",
+		label.Label{Pkg: "pplx/frontend/aether/components/Button", Name: "visual_module"},
+		ix,
+	)
+	if external {
+		t.Fatalf("external = true, want false")
+	}
+	if got != "//pplx/frontend/testing/component-vrt" {
+		t.Errorf("resolveSubpathImport = %q, want //pplx/frontend/testing/component-vrt", got)
+	}
+}
+
 func TestResolveImportsToDeps_RelativeParentPackageImportUsesRuleIndex(t *testing.T) {
 	lang := &tsLang{
 		packageDeps:       map[string]bool{},

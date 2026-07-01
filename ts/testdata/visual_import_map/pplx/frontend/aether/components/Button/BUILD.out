@@ -1,0 +1,17 @@
+load("@gazelle_ts//ts:defs.bzl", "ts_library", "ts_visual_library")
+
+ts_library(
+    name = "Button",
+    srcs = ["Button.ts"],
+    visibility = ["//visibility:public"],
+)
+
+ts_visual_library(
+    name = "visual_module",
+    srcs = ["Button.visual.tsx"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":Button",
+        "//pplx/frontend/testing/component-vrt",
+    ],
+)
