@@ -604,6 +604,7 @@ func TestResolveSubpathImport_LabelTemplateFromPackageImports(t *testing.T) {
 	}
 
 	got, external := lang.resolveSubpathImport(
+		nil,
 		"#generated/typespec/rest/users/index.js",
 		label.Label{Pkg: "apps/web", Name: "web"},
 		nil,
@@ -635,6 +636,7 @@ func TestResolveSubpathImport_PathTargetUsesRuleIndex(t *testing.T) {
 	ix.Finish()
 
 	got, external := lang.resolveSubpathImport(
+		c,
 		"#generated/typespec/rest/users/index.js",
 		label.Label{Pkg: "app", Name: "app"},
 		ix,
@@ -644,6 +646,123 @@ func TestResolveSubpathImport_PathTargetUsesRuleIndex(t *testing.T) {
 	}
 	if got != "//typespec/rest/users:users.web" {
 		t.Errorf("resolveSubpathImport = %q, want //typespec/rest/users:users.web", got)
+	}
+}
+
+func TestResolveSubpathImport_PathTargetUsesPackageWildcard(t *testing.T) {
+	lang := &tsLang{
+		packageDeps: map[string]bool{},
+		subpathImportsMap: map[string][]string{
+			"#workspace/*": {"./workspace/*"},
+		},
+	}
+	c := config.New()
+	c.Exts[languageName] = newTsConfig()
+	ix := gazelleresolve.NewRuleIndex(func(r *rule.Rule, pkgRel string) gazelleresolve.Resolver {
+		if r.Kind() == KindTsLibrary {
+			return lang
+		}
+		return nil
+	})
+	ix.AddRule(c, rule.NewRule(KindTsLibrary, "component-vrt"), &rule.File{Pkg: "workspace/frontend/testing/component-vrt"})
+	ix.Finish()
+
+	got, external := lang.resolveSubpathImport(
+		c,
+		"#workspace/frontend/testing/component-vrt/componentVisual.js",
+		label.Label{Pkg: "workspace/frontend/ui/components/Button", Name: "visual_module"},
+		ix,
+	)
+	if external {
+		t.Fatalf("external = true, want false")
+	}
+	if got != "//workspace/frontend/testing/component-vrt" {
+		t.Errorf("resolveSubpathImport = %q, want //workspace/frontend/testing/component-vrt", got)
+	}
+}
+
+func TestResolveSubpathImport_ExactSourceOwnerWinsOverPackageAggregate(t *testing.T) {
+	lang := &tsLang{
+		packageDeps: map[string]bool{},
+		subpathImportsMap: map[string][]string{
+			"#workspace/*": {"./workspace/*"},
+		},
+	}
+	c := config.New()
+	cfg := newTsConfig()
+	cfg.extensions = append(cfg.extensions, ".mts")
+	c.Exts[languageName] = cfg
+	c.KindMap = map[string]config.MappedKind{
+		KindTsLibrary: {
+			FromKind: KindTsLibrary,
+			KindName: "custom_ts_library",
+		},
+	}
+	ix := gazelleresolve.NewRuleIndex(func(r *rule.Rule, pkgRel string) gazelleresolve.Resolver {
+		if kindMatches(c, r.Kind(), KindTsLibrary) {
+			return lang
+		}
+		return nil
+	})
+
+	aggregate := rule.NewRule("custom_ts_library", "component-vrt")
+	aggregate.SetAttr("srcs", []string{"browserChannelBridge.ts"})
+	componentVisual := rule.NewRule("custom_ts_library", "component-visual")
+	componentVisual.SetAttr("srcs", []string{"componentVisual.mts"})
+	file := &rule.File{Pkg: "workspace/frontend/testing/component-vrt"}
+	ix.AddRule(c, aggregate, file)
+	ix.AddRule(c, componentVisual, file)
+	ix.Finish()
+
+	got, external := lang.resolveSubpathImport(
+		c,
+		"#workspace/frontend/testing/component-vrt/componentVisual.mjs",
+		label.Label{Pkg: "workspace/frontend/ui/components/Button", Name: "visual_module"},
+		ix,
+	)
+	if external {
+		t.Fatalf("external = true, want false")
+	}
+	if got != "//workspace/frontend/testing/component-vrt:component-visual" {
+		t.Errorf("resolveSubpathImport = %q, want //workspace/frontend/testing/component-vrt:component-visual", got)
+	}
+}
+
+func TestResolveSubpathImport_SamePackageExactSourceOwner(t *testing.T) {
+	lang := &tsLang{
+		packageDeps: map[string]bool{},
+		subpathImportsMap: map[string][]string{
+			"#workspace/*": {"./workspace/*"},
+		},
+	}
+	c := config.New()
+	cfg := newTsConfig()
+	cfg.extensions = append(cfg.extensions, ".mts")
+	c.Exts[languageName] = cfg
+	ix := gazelleresolve.NewRuleIndex(func(r *rule.Rule, pkgRel string) gazelleresolve.Resolver {
+		if r.Kind() == KindTsLibrary {
+			return lang
+		}
+		return nil
+	})
+
+	componentVisual := rule.NewRule(KindTsLibrary, "component-visual")
+	componentVisual.SetAttr("srcs", []string{"componentVisual.mts"})
+	file := &rule.File{Pkg: "workspace/frontend/testing/component-vrt"}
+	ix.AddRule(c, componentVisual, file)
+	ix.Finish()
+
+	got, external := lang.resolveSubpathImport(
+		c,
+		"#workspace/frontend/testing/component-vrt/componentVisual.mjs",
+		label.Label{Pkg: "workspace/frontend/testing/component-vrt", Name: "visual_module"},
+		ix,
+	)
+	if external {
+		t.Fatalf("external = true, want false")
+	}
+	if got != ":component-visual" {
+		t.Errorf("resolveSubpathImport = %q, want :component-visual", got)
 	}
 }
 
@@ -739,6 +858,7 @@ func TestResolveSubpathImport_LongestIndexedPackageWins(t *testing.T) {
 	ix.Finish()
 
 	got, external := lang.resolveSubpathImport(
+		c,
 		"#apps/web/lib/auth/permissions.js",
 		label.Label{Pkg: "apps/web", Name: "web"},
 		ix,
@@ -772,6 +892,7 @@ func TestResolveSubpathImport_SuppressesSameRuleAlias(t *testing.T) {
 	ix.Finish()
 
 	got, external := lang.resolveSubpathImport(
+		c,
 		"#repo/path/widgets/shader.js",
 		label.Label{Pkg: "path/widgets", Name: "widgets"},
 		ix,
@@ -809,6 +930,7 @@ func TestResolveSubpathImport_DoesNotFallbackToParentForSameRuleAlias(t *testing
 	ix.Finish()
 
 	got, external := lang.resolveSubpathImport(
+		c,
 		"#repo/path/widgets/shaders/shader.js",
 		label.Label{Pkg: "path/widgets/shaders", Name: "shaders"},
 		ix,

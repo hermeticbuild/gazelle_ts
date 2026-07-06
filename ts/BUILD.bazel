@@ -67,6 +67,7 @@ go_test(
     srcs = [
         "config_test.go",
         "generate_test.go",
+        "imports_test.go",
         "resolve_test.go",
     ],
     # Mirror the go_library's runtime linkopts; go_test relinks the cgo'd rlib.

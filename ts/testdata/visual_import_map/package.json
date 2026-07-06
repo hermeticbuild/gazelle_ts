@@ -1,0 +1,8 @@
+{
+  "name": "visual-import-map",
+  "version": "0.0.0",
+  "private": true,
+  "imports": {
+    "#workspace/*": "./workspace/*"
+  }
+}

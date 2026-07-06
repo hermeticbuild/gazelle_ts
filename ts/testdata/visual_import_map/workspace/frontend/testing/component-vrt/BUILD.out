@@ -1,0 +1,7 @@
+load("@gazelle_ts//ts:defs.bzl", "ts_library")
+
+ts_library(
+    name = "component-vrt",
+    srcs = ["componentVisual.ts"],
+    visibility = ["//visibility:public"],
+)

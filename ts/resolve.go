@@ -265,7 +265,7 @@ func (l *tsLang) resolveImportsToDeps(
 		// with `//` or `@`) go to `deps` because they're typically npm-style
 		// packages (npm_package, js_library, …); workspace-path targets resolve
 		// via the RuleIndex and go to `references` (TS project references).
-		if target, external := l.resolveSubpathImport(path, from, ix); target != "" {
+		if target, external := l.resolveSubpathImport(c, path, from, ix); target != "" {
 			if external {
 				result.external = append(result.external, target)
 			} else {
@@ -329,7 +329,7 @@ func (d *resolvedDeps) addNpmDep(cfg *tsConfig, pkgName string) {
 // first) and returns the matching Bazel label plus a flag indicating whether
 // the label is external (deps) or internal (references). Empty label means
 // no match.
-func (l *tsLang) resolveSubpathImport(importPath string, from label.Label, ix *resolve.RuleIndex) (string, bool) {
+func (l *tsLang) resolveSubpathImport(c *config.Config, importPath string, from label.Label, ix *resolve.RuleIndex) (string, bool) {
 	keys := make([]string, 0, len(l.subpathImportsMap))
 	for k := range l.subpathImportsMap {
 		keys = append(keys, k)
@@ -344,7 +344,7 @@ func (l *tsLang) resolveSubpathImport(importPath string, from label.Label, ix *r
 		}
 
 		for _, target := range l.subpathImportsMap[pattern] {
-			if dep, external, ok := l.resolveSubpathTarget(target, capture, from, ix); ok {
+			if dep, external, ok := l.resolveSubpathTarget(c, target, capture, from, ix); ok {
 				return dep, external
 			}
 		}
@@ -372,7 +372,7 @@ func matchSubpathImportPattern(pattern, importPath string) (string, bool) {
 	return importPath[len(prefix):captureEnd], true
 }
 
-func (l *tsLang) resolveSubpathTarget(target, capture string, from label.Label, ix *resolve.RuleIndex) (string, bool, bool) {
+func (l *tsLang) resolveSubpathTarget(c *config.Config, target, capture string, from label.Label, ix *resolve.RuleIndex) (string, bool, bool) {
 	target = strings.ReplaceAll(target, "*", capture)
 
 	// If the target itself is already a Bazel label, use it directly
@@ -394,7 +394,7 @@ func (l *tsLang) resolveSubpathTarget(target, capture string, from label.Label, 
 	// Otherwise treat target as a path within the repo and look up the
 	// matching ts_project in the rule index.
 	resolvedPath := strings.TrimPrefix(target, "./")
-	if dep := resolveWorkspacePathToInternalLabel(nil, resolvedPath, from, ix); dep != "" {
+	if dep := resolveWorkspacePathToInternalLabel(c, resolvedPath, from, ix); dep != "" {
 		return dep, false, true
 	}
 	return "", false, false
@@ -402,23 +402,21 @@ func (l *tsLang) resolveSubpathTarget(target, capture string, from label.Label, 
 
 func resolveWorkspacePathToInternalLabel(c *config.Config, targetPath string, from label.Label, ix *resolve.RuleIndex) string {
 	targetPath = strings.TrimPrefix(filepath.ToSlash(targetPath), "./")
-	for _, ext := range []string{".js", ".ts", ".tsx", ".jsx"} {
-		targetPath = strings.TrimSuffix(targetPath, ext)
-	}
+	targetPath = trimImportPathExtension(c, targetPath)
 	parts := strings.Split(targetPath, "/")
 
 	for i := len(parts); i >= 0; i-- {
 		testPath := strings.Join(parts[:i], "/")
-		if testPath == from.Pkg {
-			return ""
-		}
 		for _, imp := range []string{testPath, testPath + "/*"} {
 			found := ix.FindRulesByImportWithConfig(c, resolve.ImportSpec{Lang: languageName, Imp: imp}, languageName)
 			sort.Slice(found, func(i, j int) bool {
 				return len(found[i].Label.Pkg) > len(found[j].Label.Pkg)
 			})
 			for _, candidate := range found {
-				if candidate.Label.Pkg == from.Pkg {
+				if candidate.IsSelfImport(from) {
+					return ""
+				}
+				if candidate.Label.Pkg == from.Pkg && (imp != targetPath || targetPath == from.Pkg) {
 					return ""
 				}
 				// Use the actual rule label from the index — it carries the
@@ -427,6 +425,9 @@ func resolveWorkspacePathToInternalLabel(c *config.Config, targetPath string, fr
 				// //packages/foo).
 				return candidate.Label.Rel(from.Repo, from.Pkg).String()
 			}
+		}
+		if testPath == from.Pkg {
+			return ""
 		}
 	}
 
