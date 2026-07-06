@@ -20,6 +20,9 @@ func kindMatches(c *config.Config, ruleKind, canonical string) bool {
 	if ruleKind == canonical {
 		return true
 	}
+	if c == nil {
+		return false
+	}
 	if mapped, ok := c.KindMap[canonical]; ok && mapped.KindName == ruleKind {
 		return true
 	}

@@ -604,6 +604,7 @@ func TestResolveSubpathImport_LabelTemplateFromPackageImports(t *testing.T) {
 	}
 
 	got, external := lang.resolveSubpathImport(
+		nil,
 		"#generated/typespec/rest/users/index.js",
 		label.Label{Pkg: "apps/web", Name: "web"},
 		nil,
@@ -635,6 +636,7 @@ func TestResolveSubpathImport_PathTargetUsesRuleIndex(t *testing.T) {
 	ix.Finish()
 
 	got, external := lang.resolveSubpathImport(
+		c,
 		"#generated/typespec/rest/users/index.js",
 		label.Label{Pkg: "app", Name: "app"},
 		ix,
@@ -666,6 +668,7 @@ func TestResolveSubpathImport_PathTargetUsesPackageWildcard(t *testing.T) {
 	ix.Finish()
 
 	got, external := lang.resolveSubpathImport(
+		c,
 		"#pplx/frontend/testing/component-vrt/componentVisual.js",
 		label.Label{Pkg: "pplx/frontend/aether/components/Button", Name: "visual_module"},
 		ix,
@@ -675,6 +678,53 @@ func TestResolveSubpathImport_PathTargetUsesPackageWildcard(t *testing.T) {
 	}
 	if got != "//pplx/frontend/testing/component-vrt" {
 		t.Errorf("resolveSubpathImport = %q, want //pplx/frontend/testing/component-vrt", got)
+	}
+}
+
+func TestResolveSubpathImport_ExactSourceOwnerWinsOverPackageAggregate(t *testing.T) {
+	lang := &tsLang{
+		packageDeps: map[string]bool{},
+		subpathImportsMap: map[string][]string{
+			"#pplx/*": {"./pplx/*"},
+		},
+	}
+	c := config.New()
+	cfg := newTsConfig()
+	cfg.extensions = append(cfg.extensions, ".mts")
+	c.Exts[languageName] = cfg
+	c.KindMap = map[string]config.MappedKind{
+		KindTsLibrary: {
+			FromKind: KindTsLibrary,
+			KindName: "pplx_ts_library",
+		},
+	}
+	ix := gazelleresolve.NewRuleIndex(func(r *rule.Rule, pkgRel string) gazelleresolve.Resolver {
+		if kindMatches(c, r.Kind(), KindTsLibrary) {
+			return lang
+		}
+		return nil
+	})
+
+	aggregate := rule.NewRule("pplx_ts_library", "component-vrt")
+	aggregate.SetAttr("srcs", []string{"browserChannelBridge.ts"})
+	componentVisual := rule.NewRule("pplx_ts_library", "component-visual")
+	componentVisual.SetAttr("srcs", []string{"componentVisual.mts"})
+	file := &rule.File{Pkg: "pplx/frontend/testing/component-vrt"}
+	ix.AddRule(c, aggregate, file)
+	ix.AddRule(c, componentVisual, file)
+	ix.Finish()
+
+	got, external := lang.resolveSubpathImport(
+		c,
+		"#pplx/frontend/testing/component-vrt/componentVisual.mjs",
+		label.Label{Pkg: "pplx/frontend/aether/components/Button", Name: "visual_module"},
+		ix,
+	)
+	if external {
+		t.Fatalf("external = true, want false")
+	}
+	if got != "//pplx/frontend/testing/component-vrt:component-visual" {
+		t.Errorf("resolveSubpathImport = %q, want //pplx/frontend/testing/component-vrt:component-visual", got)
 	}
 }
 
@@ -770,6 +820,7 @@ func TestResolveSubpathImport_LongestIndexedPackageWins(t *testing.T) {
 	ix.Finish()
 
 	got, external := lang.resolveSubpathImport(
+		c,
 		"#apps/web/lib/auth/permissions.js",
 		label.Label{Pkg: "apps/web", Name: "web"},
 		ix,
@@ -803,6 +854,7 @@ func TestResolveSubpathImport_SuppressesSameRuleAlias(t *testing.T) {
 	ix.Finish()
 
 	got, external := lang.resolveSubpathImport(
+		c,
 		"#repo/path/widgets/shader.js",
 		label.Label{Pkg: "path/widgets", Name: "widgets"},
 		ix,
@@ -840,6 +892,7 @@ func TestResolveSubpathImport_DoesNotFallbackToParentForSameRuleAlias(t *testing
 	ix.Finish()
 
 	got, external := lang.resolveSubpathImport(
+		c,
 		"#repo/path/widgets/shaders/shader.js",
 		label.Label{Pkg: "path/widgets/shaders", Name: "shaders"},
 		ix,
