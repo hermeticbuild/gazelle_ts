@@ -653,7 +653,7 @@ func TestResolveSubpathImport_PathTargetUsesPackageWildcard(t *testing.T) {
 	lang := &tsLang{
 		packageDeps: map[string]bool{},
 		subpathImportsMap: map[string][]string{
-			"#pplx/*": {"./pplx/*"},
+			"#workspace/*": {"./workspace/*"},
 		},
 	}
 	c := config.New()
@@ -664,20 +664,20 @@ func TestResolveSubpathImport_PathTargetUsesPackageWildcard(t *testing.T) {
 		}
 		return nil
 	})
-	ix.AddRule(c, rule.NewRule(KindTsLibrary, "component-vrt"), &rule.File{Pkg: "pplx/frontend/testing/component-vrt"})
+	ix.AddRule(c, rule.NewRule(KindTsLibrary, "component-vrt"), &rule.File{Pkg: "workspace/frontend/testing/component-vrt"})
 	ix.Finish()
 
 	got, external := lang.resolveSubpathImport(
 		c,
-		"#pplx/frontend/testing/component-vrt/componentVisual.js",
-		label.Label{Pkg: "pplx/frontend/aether/components/Button", Name: "visual_module"},
+		"#workspace/frontend/testing/component-vrt/componentVisual.js",
+		label.Label{Pkg: "workspace/frontend/ui/components/Button", Name: "visual_module"},
 		ix,
 	)
 	if external {
 		t.Fatalf("external = true, want false")
 	}
-	if got != "//pplx/frontend/testing/component-vrt" {
-		t.Errorf("resolveSubpathImport = %q, want //pplx/frontend/testing/component-vrt", got)
+	if got != "//workspace/frontend/testing/component-vrt" {
+		t.Errorf("resolveSubpathImport = %q, want //workspace/frontend/testing/component-vrt", got)
 	}
 }
 
@@ -685,7 +685,7 @@ func TestResolveSubpathImport_ExactSourceOwnerWinsOverPackageAggregate(t *testin
 	lang := &tsLang{
 		packageDeps: map[string]bool{},
 		subpathImportsMap: map[string][]string{
-			"#pplx/*": {"./pplx/*"},
+			"#workspace/*": {"./workspace/*"},
 		},
 	}
 	c := config.New()
@@ -695,7 +695,7 @@ func TestResolveSubpathImport_ExactSourceOwnerWinsOverPackageAggregate(t *testin
 	c.KindMap = map[string]config.MappedKind{
 		KindTsLibrary: {
 			FromKind: KindTsLibrary,
-			KindName: "pplx_ts_library",
+			KindName: "custom_ts_library",
 		},
 	}
 	ix := gazelleresolve.NewRuleIndex(func(r *rule.Rule, pkgRel string) gazelleresolve.Resolver {
@@ -705,26 +705,26 @@ func TestResolveSubpathImport_ExactSourceOwnerWinsOverPackageAggregate(t *testin
 		return nil
 	})
 
-	aggregate := rule.NewRule("pplx_ts_library", "component-vrt")
+	aggregate := rule.NewRule("custom_ts_library", "component-vrt")
 	aggregate.SetAttr("srcs", []string{"browserChannelBridge.ts"})
-	componentVisual := rule.NewRule("pplx_ts_library", "component-visual")
+	componentVisual := rule.NewRule("custom_ts_library", "component-visual")
 	componentVisual.SetAttr("srcs", []string{"componentVisual.mts"})
-	file := &rule.File{Pkg: "pplx/frontend/testing/component-vrt"}
+	file := &rule.File{Pkg: "workspace/frontend/testing/component-vrt"}
 	ix.AddRule(c, aggregate, file)
 	ix.AddRule(c, componentVisual, file)
 	ix.Finish()
 
 	got, external := lang.resolveSubpathImport(
 		c,
-		"#pplx/frontend/testing/component-vrt/componentVisual.mjs",
-		label.Label{Pkg: "pplx/frontend/aether/components/Button", Name: "visual_module"},
+		"#workspace/frontend/testing/component-vrt/componentVisual.mjs",
+		label.Label{Pkg: "workspace/frontend/ui/components/Button", Name: "visual_module"},
 		ix,
 	)
 	if external {
 		t.Fatalf("external = true, want false")
 	}
-	if got != "//pplx/frontend/testing/component-vrt:component-visual" {
-		t.Errorf("resolveSubpathImport = %q, want //pplx/frontend/testing/component-vrt:component-visual", got)
+	if got != "//workspace/frontend/testing/component-vrt:component-visual" {
+		t.Errorf("resolveSubpathImport = %q, want //workspace/frontend/testing/component-vrt:component-visual", got)
 	}
 }
 
@@ -732,7 +732,7 @@ func TestResolveSubpathImport_SamePackageExactSourceOwner(t *testing.T) {
 	lang := &tsLang{
 		packageDeps: map[string]bool{},
 		subpathImportsMap: map[string][]string{
-			"#pplx/*": {"./pplx/*"},
+			"#workspace/*": {"./workspace/*"},
 		},
 	}
 	c := config.New()
@@ -748,14 +748,14 @@ func TestResolveSubpathImport_SamePackageExactSourceOwner(t *testing.T) {
 
 	componentVisual := rule.NewRule(KindTsLibrary, "component-visual")
 	componentVisual.SetAttr("srcs", []string{"componentVisual.mts"})
-	file := &rule.File{Pkg: "pplx/frontend/testing/component-vrt"}
+	file := &rule.File{Pkg: "workspace/frontend/testing/component-vrt"}
 	ix.AddRule(c, componentVisual, file)
 	ix.Finish()
 
 	got, external := lang.resolveSubpathImport(
 		c,
-		"#pplx/frontend/testing/component-vrt/componentVisual.mjs",
-		label.Label{Pkg: "pplx/frontend/testing/component-vrt", Name: "visual_module"},
+		"#workspace/frontend/testing/component-vrt/componentVisual.mjs",
+		label.Label{Pkg: "workspace/frontend/testing/component-vrt", Name: "visual_module"},
 		ix,
 	)
 	if external {

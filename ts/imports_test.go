@@ -17,11 +17,11 @@ func TestImportsIndexesMappedTsLibraryKind(t *testing.T) {
 	c.KindMap = map[string]config.MappedKind{
 		KindTsLibrary: {
 			FromKind: KindTsLibrary,
-			KindName: "pplx_ts_library",
+			KindName: "custom_ts_library",
 			KindLoad: "//tools:ts.bzl",
 		},
 	}
-	r := rule.NewRule("pplx_ts_library", "component-vrt")
+	r := rule.NewRule("custom_ts_library", "component-vrt")
 	r.SetAttr("srcs", []string{
 		"componentVisual.ts",
 		"module.mts",
@@ -30,15 +30,15 @@ func TestImportsIndexesMappedTsLibraryKind(t *testing.T) {
 		"//external:src",
 		"generated/*.ts",
 	})
-	f := &rule.File{Pkg: "pplx/frontend/testing/component-vrt"}
+	f := &rule.File{Pkg: "workspace/frontend/testing/component-vrt"}
 
 	got := (&tsLang{}).Imports(c, r, f)
 	want := []resolve.ImportSpec{
-		{Lang: languageName, Imp: "pplx/frontend/testing/component-vrt"},
-		{Lang: languageName, Imp: "pplx/frontend/testing/component-vrt/*"},
-		{Lang: languageName, Imp: "pplx/frontend/testing/component-vrt/componentVisual"},
-		{Lang: languageName, Imp: "pplx/frontend/testing/component-vrt/module"},
-		{Lang: languageName, Imp: "pplx/frontend/testing/component-vrt/nested/view"},
+		{Lang: languageName, Imp: "workspace/frontend/testing/component-vrt"},
+		{Lang: languageName, Imp: "workspace/frontend/testing/component-vrt/*"},
+		{Lang: languageName, Imp: "workspace/frontend/testing/component-vrt/componentVisual"},
+		{Lang: languageName, Imp: "workspace/frontend/testing/component-vrt/module"},
+		{Lang: languageName, Imp: "workspace/frontend/testing/component-vrt/nested/view"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Imports() = %v, want %v", got, want)
@@ -55,13 +55,13 @@ func TestImportsIndexesCurrentPackageSourceLabels(t *testing.T) {
 		":componentVisual.ts",
 		":generated",
 	})
-	f := &rule.File{Pkg: "pplx/frontend/testing/component-vrt"}
+	f := &rule.File{Pkg: "workspace/frontend/testing/component-vrt"}
 
 	got := (&tsLang{}).Imports(c, r, f)
 	want := []resolve.ImportSpec{
-		{Lang: languageName, Imp: "pplx/frontend/testing/component-vrt"},
-		{Lang: languageName, Imp: "pplx/frontend/testing/component-vrt/*"},
-		{Lang: languageName, Imp: "pplx/frontend/testing/component-vrt/componentVisual"},
+		{Lang: languageName, Imp: "workspace/frontend/testing/component-vrt"},
+		{Lang: languageName, Imp: "workspace/frontend/testing/component-vrt/*"},
+		{Lang: languageName, Imp: "workspace/frontend/testing/component-vrt/componentVisual"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Imports() = %v, want %v", got, want)

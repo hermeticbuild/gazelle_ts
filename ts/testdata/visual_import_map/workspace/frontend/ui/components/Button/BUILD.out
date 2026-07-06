@@ -12,6 +12,6 @@ ts_visual_library(
     visibility = ["//visibility:public"],
     deps = [
         ":Button",
-        "//pplx/frontend/testing/component-vrt",
+        "//workspace/frontend/testing/component-vrt",
     ],
 )
