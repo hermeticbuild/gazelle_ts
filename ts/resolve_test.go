@@ -728,6 +728,44 @@ func TestResolveSubpathImport_ExactSourceOwnerWinsOverPackageAggregate(t *testin
 	}
 }
 
+func TestResolveSubpathImport_SamePackageExactSourceOwner(t *testing.T) {
+	lang := &tsLang{
+		packageDeps: map[string]bool{},
+		subpathImportsMap: map[string][]string{
+			"#pplx/*": {"./pplx/*"},
+		},
+	}
+	c := config.New()
+	cfg := newTsConfig()
+	cfg.extensions = append(cfg.extensions, ".mts")
+	c.Exts[languageName] = cfg
+	ix := gazelleresolve.NewRuleIndex(func(r *rule.Rule, pkgRel string) gazelleresolve.Resolver {
+		if r.Kind() == KindTsLibrary {
+			return lang
+		}
+		return nil
+	})
+
+	componentVisual := rule.NewRule(KindTsLibrary, "component-visual")
+	componentVisual.SetAttr("srcs", []string{"componentVisual.mts"})
+	file := &rule.File{Pkg: "pplx/frontend/testing/component-vrt"}
+	ix.AddRule(c, componentVisual, file)
+	ix.Finish()
+
+	got, external := lang.resolveSubpathImport(
+		c,
+		"#pplx/frontend/testing/component-vrt/componentVisual.mjs",
+		label.Label{Pkg: "pplx/frontend/testing/component-vrt", Name: "visual_module"},
+		ix,
+	)
+	if external {
+		t.Fatalf("external = true, want false")
+	}
+	if got != ":component-visual" {
+		t.Errorf("resolveSubpathImport = %q, want :component-visual", got)
+	}
+}
+
 func TestResolveImportsToDeps_RelativeParentPackageImportUsesRuleIndex(t *testing.T) {
 	lang := &tsLang{
 		packageDeps:       map[string]bool{},

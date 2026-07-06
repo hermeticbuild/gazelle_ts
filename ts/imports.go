@@ -64,7 +64,8 @@ func importSpecsForLiteralSrcs(c *config.Config, pkg string, srcs []string) []re
 func importPathForSrc(c *config.Config, pkg, src string) (string, bool) {
 	cleanSrc := filepath.ToSlash(filepath.Clean(src))
 	cleanSrc = strings.TrimPrefix(cleanSrc, "./")
-	if cleanSrc == "." || strings.HasPrefix(cleanSrc, "../") {
+	cleanSrc = strings.TrimPrefix(cleanSrc, ":")
+	if cleanSrc == "" || cleanSrc == "." || strings.HasPrefix(cleanSrc, "../") {
 		return "", false
 	}
 	for _, ext := range importSpecSourceExtensions(c) {
@@ -81,7 +82,6 @@ func importPathForSrc(c *config.Config, pkg, src string) (string, bool) {
 
 func isNonSourceSrc(src string) bool {
 	return src == "" ||
-		strings.HasPrefix(src, ":") ||
 		strings.HasPrefix(src, "//") ||
 		strings.HasPrefix(src, "@") ||
 		strings.ContainsAny(src, "*?[")

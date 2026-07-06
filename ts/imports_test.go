@@ -44,3 +44,26 @@ func TestImportsIndexesMappedTsLibraryKind(t *testing.T) {
 		t.Errorf("Imports() = %v, want %v", got, want)
 	}
 }
+
+func TestImportsIndexesCurrentPackageSourceLabels(t *testing.T) {
+	c := config.New()
+	c.Exts[languageName] = &tsConfig{
+		extensions: []string{".ts"},
+	}
+	r := rule.NewRule(KindTsLibrary, "component-vrt")
+	r.SetAttr("srcs", []string{
+		":componentVisual.ts",
+		":generated",
+	})
+	f := &rule.File{Pkg: "pplx/frontend/testing/component-vrt"}
+
+	got := (&tsLang{}).Imports(c, r, f)
+	want := []resolve.ImportSpec{
+		{Lang: languageName, Imp: "pplx/frontend/testing/component-vrt"},
+		{Lang: languageName, Imp: "pplx/frontend/testing/component-vrt/*"},
+		{Lang: languageName, Imp: "pplx/frontend/testing/component-vrt/componentVisual"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Imports() = %v, want %v", got, want)
+	}
+}

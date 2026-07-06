@@ -407,16 +407,16 @@ func resolveWorkspacePathToInternalLabel(c *config.Config, targetPath string, fr
 
 	for i := len(parts); i >= 0; i-- {
 		testPath := strings.Join(parts[:i], "/")
-		if testPath == from.Pkg {
-			return ""
-		}
 		for _, imp := range []string{testPath, testPath + "/*"} {
 			found := ix.FindRulesByImportWithConfig(c, resolve.ImportSpec{Lang: languageName, Imp: imp}, languageName)
 			sort.Slice(found, func(i, j int) bool {
 				return len(found[i].Label.Pkg) > len(found[j].Label.Pkg)
 			})
 			for _, candidate := range found {
-				if candidate.Label.Pkg == from.Pkg {
+				if candidate.IsSelfImport(from) {
+					return ""
+				}
+				if candidate.Label.Pkg == from.Pkg && (imp != targetPath || targetPath == from.Pkg) {
 					return ""
 				}
 				// Use the actual rule label from the index — it carries the
@@ -425,6 +425,9 @@ func resolveWorkspacePathToInternalLabel(c *config.Config, targetPath string, fr
 				// //packages/foo).
 				return candidate.Label.Rel(from.Repo, from.Pkg).String()
 			}
+		}
+		if testPath == from.Pkg {
+			return ""
 		}
 	}
 
