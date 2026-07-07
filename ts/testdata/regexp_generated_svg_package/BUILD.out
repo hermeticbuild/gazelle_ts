@@ -1,0 +1,10 @@
+load("@aspect_rules_js//npm:defs.bzl", "npm_link_package")
+
+npm_link_package(
+    name = "node_modules/#myorg_generated/icons",
+    src = "//generated/icons:pkg",
+    package = "#myorg_generated/icons",
+    visibility = ["//visibility:public"],
+)
+
+# gazelle:resolve_regexp ts ^#myorg_generated/(.*)$ //:node_modules/#myorg_generated/$1

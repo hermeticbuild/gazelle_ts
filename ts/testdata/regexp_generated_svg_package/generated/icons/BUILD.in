@@ -1,0 +1,25 @@
+load("@aspect_rules_js//npm:defs.bzl", "npm_package")
+
+# gazelle:ts_enabled false
+
+genrule(
+    name = "gen_svgs",
+    outs = [
+        "logo.svg",
+        "mark.svg",
+    ],
+    cmd = """cat > $(location logo.svg) <<'EOF'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 2h12v12H2z"/></svg>
+EOF
+cat > $(location mark.svg) <<'EOF'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/></svg>
+EOF
+""",
+)
+
+npm_package(
+    name = "pkg",
+    srcs = [":gen_svgs"],
+    package = "#myorg_generated/icons",
+    visibility = ["//visibility:public"],
+)

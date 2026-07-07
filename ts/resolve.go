@@ -256,7 +256,7 @@ func (l *tsLang) resolveImportsToDeps(
 		// Overrides win over every other resolution path.
 		spec := resolve.ImportSpec{Lang: languageName, Imp: path}
 		if dep, ok := resolve.FindRuleWithOverride(c, spec, languageName); ok {
-			result.external = append(result.external, dep.Rel(from.Repo, from.Pkg).String())
+			result.external = append(result.external, overrideDepLabel(cfg, path, dep, from))
 			continue
 		}
 
@@ -300,6 +300,31 @@ func (l *tsLang) resolveImportsToDeps(
 	}
 	result.tsconfigTypes = deduplicateAndSort(result.tsconfigTypes)
 	return result
+}
+
+func overrideDepLabel(cfg *tsConfig, importPath string, dep label.Label, from label.Label) string {
+	depLabel := dep.Rel(from.Repo, from.Pkg).String()
+	importPkg := packageNameFromImportPath(importPath)
+	if importPkg == "" {
+		return depLabel
+	}
+	resolvedPkg, ok := npmPackageFromLabel(cfg, depLabel)
+	if !ok || !strings.HasPrefix(resolvedPkg, importPkg+"/") {
+		return depLabel
+	}
+	return npmLabel(cfg, importPkg)
+}
+
+func packageNameFromImportPath(importPath string) string {
+	if strings.HasPrefix(importPath, "@") || strings.HasPrefix(importPath, "#") {
+		parts := strings.SplitN(importPath, "/", 3)
+		if len(parts) < 2 {
+			return ""
+		}
+		return parts[0] + "/" + parts[1]
+	}
+	parts := strings.SplitN(importPath, "/", 2)
+	return parts[0]
 }
 
 func (l *tsLang) resolveRelativeImport(c *config.Config, imp ImportStatement, from label.Label, ix *resolve.RuleIndex) string {

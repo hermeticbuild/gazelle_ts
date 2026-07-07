@@ -569,12 +569,18 @@ mod tests {
             r#"
             import './styles.css';
             import '../reset.css';
+            import logo from './logo.svg';
             import 'tailwindcss/base';
         "#,
         );
         assert_eq!(
             imports,
-            vec!["./styles.css", "../reset.css", "tailwindcss/base"]
+            vec![
+                "./styles.css",
+                "../reset.css",
+                "./logo.svg",
+                "tailwindcss/base"
+            ]
         );
     }
 

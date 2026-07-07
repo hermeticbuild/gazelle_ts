@@ -833,6 +833,92 @@ func TestResolveImportsToDeps_RelativeSamePackageImportIgnored(t *testing.T) {
 	}
 }
 
+func TestResolveImportsToDeps_RelativeNonJsImportsUseRuleIndex(t *testing.T) {
+	lang := &tsLang{
+		packageDeps:       map[string]bool{},
+		subpathImportsMap: map[string][]string{},
+	}
+	c := config.New()
+	c.RepoRoot = "/repo"
+	c.Exts[languageName] = newTsConfig()
+	ix := gazelleresolve.NewRuleIndex(func(r *rule.Rule, pkgRel string) gazelleresolve.Resolver {
+		if r.Kind() == KindTsLibrary {
+			return lang
+		}
+		return nil
+	})
+	ix.AddRule(c, rule.NewRule(KindTsLibrary, "styles"), &rule.File{Pkg: "apps/styles"})
+	ix.AddRule(c, rule.NewRule(KindTsLibrary, "icons"), &rule.File{Pkg: "apps/icons"})
+	ix.Finish()
+
+	got := lang.resolveImportsToDeps(
+		c,
+		[]ImportStatement{
+			{
+				ImportPath: "../styles/global.css",
+				SourceFile: "/repo/apps/web/App.tsx",
+			},
+			{
+				ImportPath: "../icons/logo.svg",
+				SourceFile: "/repo/apps/web/App.tsx",
+			},
+		},
+		label.Label{Pkg: "apps/web", Name: "web"},
+		ix,
+		newTsConfig(),
+	)
+	want := []string{"//apps/icons", "//apps/styles"}
+	if !reflect.DeepEqual(got.internal, want) {
+		t.Errorf("internal deps = %v, want %v", got.internal, want)
+	}
+}
+
+func TestResolve_TsLibraryPopulatesDepsForRelativeNonJsImports(t *testing.T) {
+	cfg := newTsConfig()
+	c := config.New()
+	c.RepoRoot = "/repo"
+	c.Exts[languageName] = cfg
+	lang := &tsLang{
+		packageDeps:       map[string]bool{},
+		subpathImportsMap: map[string][]string{},
+	}
+	ix := gazelleresolve.NewRuleIndex(func(r *rule.Rule, pkgRel string) gazelleresolve.Resolver {
+		if r.Kind() == KindTsLibrary {
+			return lang
+		}
+		return nil
+	})
+	ix.AddRule(c, rule.NewRule(KindTsLibrary, "styles"), &rule.File{Pkg: "apps/styles"})
+	ix.AddRule(c, rule.NewRule(KindTsLibrary, "icons"), &rule.File{Pkg: "apps/icons"})
+	ix.Finish()
+
+	r := rule.NewRule(KindTsLibrary, "web")
+	lang.Resolve(
+		c,
+		ix,
+		nil,
+		r,
+		ImportData{
+			Imports: []ImportStatement{
+				{
+					ImportPath: "../styles/global.css",
+					SourceFile: "/repo/apps/web/App.tsx",
+				},
+				{
+					ImportPath: "../icons/logo.svg",
+					SourceFile: "/repo/apps/web/App.tsx",
+				},
+			},
+		},
+		label.Label{Pkg: "apps/web", Name: "web"},
+	)
+
+	want := []string{"//apps/icons", "//apps/styles"}
+	if got := r.AttrStrings("deps"); !reflect.DeepEqual(got, want) {
+		t.Errorf("deps = %v, want %v", got, want)
+	}
+}
+
 func TestResolveSubpathImport_LongestIndexedPackageWins(t *testing.T) {
 	lang := &tsLang{
 		packageDeps: map[string]bool{},
@@ -983,6 +1069,7 @@ func TestResolveImportsToDeps_RegexpOverride(t *testing.T) {
 	resolveConfigurer.Configure(c, "", &rule.File{
 		Directives: []rule.Directive{
 			ruleDirective("resolve_regexp", `ts ^@myrepo_generated/(.*)$ //:node_modules/@myrepo_generated/$1`),
+			ruleDirective("resolve_regexp", `ts ^#myorg_generated/(.*)$ //:node_modules/#myorg_generated/$1`),
 		},
 	})
 
@@ -992,12 +1079,20 @@ func TestResolveImportsToDeps_RegexpOverride(t *testing.T) {
 	}
 	got := lang.resolveImportsToDeps(
 		c,
-		[]ImportStatement{{ImportPath: "@myrepo_generated/synthetic"}},
+		[]ImportStatement{
+			{ImportPath: "#myorg_generated/icons/logo.svg"},
+			{ImportPath: "@myrepo_generated/icons/logo.svg"},
+			{ImportPath: "@myrepo_generated/synthetic"},
+		},
 		label.Label{Pkg: "apps/cli", Name: "cli"},
 		nil,
 		cfg,
 	)
-	want := []string{"//:node_modules/@myrepo_generated/synthetic"}
+	want := []string{
+		"//:node_modules/#myorg_generated/icons",
+		"//:node_modules/@myrepo_generated/icons",
+		"//:node_modules/@myrepo_generated/synthetic",
+	}
 	if !reflect.DeepEqual(got.external, want) {
 		t.Errorf("external deps = %v, want %v", got.external, want)
 	}
