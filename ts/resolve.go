@@ -130,11 +130,14 @@ func (l *tsLang) Resolve(
 		// for both stock js_binary and the abstract ts_binary.
 		resolved := l.resolveImportsToDeps(c, importData.Imports, from, ix, cfg)
 		globalResolved := resolveGlobalsToDeps(importData.Globals, cfg)
-		all := append([]string{}, r.AttrStrings("data")...)
-		all = append(all, resolved.external...)
-		all = append(all, resolved.internal...)
-		all = append(all, globalResolved.external...)
-		setOrDelete(r, "data", all)
+		data, literalData := literalStringList(r.Attr("data"))
+		if r.Attr("data") == nil || literalData {
+			all := append([]string{}, data...)
+			all = append(all, resolved.external...)
+			all = append(all, resolved.internal...)
+			all = append(all, globalResolved.external...)
+			setOrDelete(r, "data", all)
+		}
 		if kindMatches(c, r.Kind(), KindTsBinary) {
 			tsconfigTypes := append([]string{}, resolved.tsconfigTypes...)
 			tsconfigTypes = append(tsconfigTypes, globalResolved.tsconfigTypes...)

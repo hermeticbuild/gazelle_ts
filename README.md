@@ -255,9 +255,17 @@ data. For `ts_binary`, it also manages `tsconfig_types`.
 
 Package-local TypeScript files already named by another rule's `entry_point`,
 `srcs`, or `data` are omitted from generated library, test, visual-library,
-and bundler-config rules. Literal lists and `glob()` expressions are supported.
-This lets binaries, resource bundles, and custom runners own their files without
-blanket Gazelle exclusions or duplicate compilation targets.
+and bundler-config rules. Literal lists, `glob()` expressions, concatenations,
+and `select()` values are supported. This lets binaries, resource bundles, and
+custom runners own their files without blanket Gazelle exclusions or duplicate
+compilation targets.
+
+Binary `data` expressed as a literal string list is merged with inferred import
+dependencies. Nonliteral expressions are left untouched because Gazelle cannot
+safely append dependencies to arbitrary Starlark; their imports are still
+scanned and `ts_binary` still receives inferred `tsconfig_types`.
+Generated `ts_test.data` remains controlled by `ts_test_data` so stale generated
+entries can be corrected on later runs.
 
 ## Supported Directives
 
@@ -459,7 +467,7 @@ runs.
 | Attr | Kind | Behavior |
 |---|---|---|
 | `entry_point` / `srcs` | both | Hand-written by the user; Gazelle scans these files. |
-| `data` | both | Existing runtime data merged with resolved deps from imports. |
+| `data` | both | Literal runtime data is merged with resolved deps; nonliteral expressions are preserved unchanged. |
 | `tsconfig_types` | `ts_binary` only | Inferred ambient type names. |
 
 ## Architecture

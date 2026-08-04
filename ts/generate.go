@@ -8,6 +8,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazelbuild/buildtools/build"
 	"github.com/bmatcuk/doublestar/v4"
 )
 
@@ -65,13 +66,6 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	testSrcs := parts.test
 	visualLibrarySrcs := parts.visualLibrary
 
-	var tsFiles []string
-	for _, f := range args.RegularFiles {
-		if isTypeScriptFile(f, cfg) {
-			tsFiles = append(tsFiles, filepath.Join(args.Dir, f))
-		}
-	}
-
 	// Hand-written binary rules in this BUILD whose `data` we manage. We
 	// never generate them — we piggyback on the user's existing rule,
 	// scan its entry_point/srcs for imports, and let Resolve set data.
@@ -79,14 +73,15 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	type binaryRef struct {
 		kind  string
 		name  string
-		files []string // package-relative TS files referenced by the rule
-		data  []string // explicit runtime data preserved while imports are resolved
+		files []string   // package-relative TS files referenced by the rule
+		data  build.Expr // explicit runtime data preserved while imports are resolved
 	}
 	var binaries []binaryRef
+	binarySources := map[string]bool{}
 	if args.File != nil {
-		seen := make(map[string]bool, len(tsFiles))
-		for _, f := range tsFiles {
-			seen[f] = true
+		available := make(map[string]bool, len(args.RegularFiles))
+		for _, f := range args.RegularFiles {
+			available[filepath.ToSlash(f)] = true
 		}
 		for _, r := range args.File.Rules {
 			canonical := ""
@@ -102,24 +97,34 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			ref := binaryRef{
 				kind: canonical,
 				name: r.Name(),
-				data: append([]string(nil), r.AttrStrings("data")...),
+				data: r.Attr("data"),
 			}
-			candidates := append([]string{r.AttrString("entry_point")}, r.AttrStrings("srcs")...)
+			candidates := append(
+				localSourcesFromAttr(r, "entry_point", available),
+				localSourcesFromAttr(r, "srcs", available)...,
+			)
+			seen := map[string]bool{}
 			for _, c := range candidates {
-				if c == "" || !isTypeScriptFile(c, cfg) {
+				if !isTypeScriptFile(c, cfg) || seen[c] {
 					continue
 				}
+				seen[c] = true
 				ref.files = append(ref.files, c)
-				full := filepath.Join(args.Dir, c)
-				if !seen[full] {
-					tsFiles = append(tsFiles, full)
-					seen[full] = true
-				}
+				binarySources[c] = true
 			}
 			if len(ref.files) > 0 {
 				binaries = append(binaries, ref)
 			}
 		}
+	}
+
+	var tsFiles []string
+	for _, f := range args.RegularFiles {
+		f = filepath.ToSlash(f)
+		if !isTypeScriptFile(f, cfg) || (ownedSources[f] && !binarySources[f]) {
+			continue
+		}
+		tsFiles = append(tsFiles, filepath.Join(args.Dir, f))
 	}
 
 	var sourceImports, testImports []ImportStatement
@@ -239,7 +244,7 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			globals = append(globals, refs.Globals...)
 		}
 		r := rule.NewRule(b.kind, b.name)
-		if len(b.data) > 0 {
+		if b.data != nil {
 			r.SetAttr("data", b.data)
 		}
 		genRules = append(genRules, r)
@@ -443,10 +448,16 @@ func existingRuleOwnedSources(
 	}
 
 	for _, r := range file.Rules {
+		attrs := []string{"entry_point", "srcs", "data"}
 		if isGeneratedRule(c, r, cfg, libName, testName, visualLibraryName) {
-			continue
+			attrs = nil
+			// ts_test.data is generated from ts_test_data and may contain stale
+			// output that a later Gazelle run must be able to replace.
+			if !kindMatches(c, r.Kind(), KindTsTest) {
+				attrs = []string{"data"}
+			}
 		}
-		for _, attr := range []string{"entry_point", "srcs", "data"} {
+		for _, attr := range attrs {
 			for _, source := range localSourcesFromAttr(r, attr, available) {
 				if isTypeScriptFile(source, cfg) {
 					owned[source] = true
@@ -489,7 +500,7 @@ func localSourcesFromAttr(r *rule.Rule, attr string, available map[string]bool) 
 	seen := map[string]bool{}
 	var sources []string
 	add := func(source string) {
-		source = filepath.ToSlash(source)
+		source = normalizeLocalSource(source)
 		if !available[source] || seen[source] {
 			return
 		}
@@ -497,21 +508,78 @@ func localSourcesFromAttr(r *rule.Rule, attr string, available map[string]bool) 
 		sources = append(sources, source)
 	}
 
-	if value := r.AttrString(attr); value != "" {
-		add(value)
+	collectLocalSources(r.Attr(attr), available, add)
+	sort.Strings(sources)
+	return sources
+}
+
+func collectLocalSources(expr build.Expr, available map[string]bool, add func(string)) {
+	if expr == nil {
+		return
 	}
-	for _, value := range r.AttrStrings(attr) {
-		add(value)
-	}
-	if glob, ok := rule.ParseGlobExpr(r.Attr(attr)); ok {
+	if glob, ok := rule.ParseGlobExpr(expr); ok {
 		for source := range available {
 			if matchesSourceGlob(source, glob.Patterns, glob.Excludes) {
 				add(source)
 			}
 		}
+		return
 	}
-	sort.Strings(sources)
-	return sources
+
+	switch expr := expr.(type) {
+	case *build.StringExpr:
+		add(expr.Value)
+	case *build.ListExpr:
+		for _, item := range expr.List {
+			collectLocalSources(item, available, add)
+		}
+	case *build.BinaryExpr:
+		if expr.Op != "+" {
+			return
+		}
+		collectLocalSources(expr.X, available, add)
+		collectLocalSources(expr.Y, available, add)
+	case *build.CallExpr:
+		callee, ok := expr.X.(*build.Ident)
+		if !ok || callee.Name != "select" {
+			return
+		}
+		for _, arg := range expr.List {
+			collectLocalSources(arg, available, add)
+		}
+	case *build.DictExpr:
+		for _, item := range expr.List {
+			collectLocalSources(item.Value, available, add)
+		}
+	case *build.KeyValueExpr:
+		collectLocalSources(expr.Value, available, add)
+	}
+}
+
+func normalizeLocalSource(source string) string {
+	source = filepath.ToSlash(source)
+	if strings.HasPrefix(source, "//") || strings.HasPrefix(source, "@") {
+		return ""
+	}
+	source = strings.TrimPrefix(source, ":")
+	source = strings.TrimPrefix(source, "./")
+	return source
+}
+
+func literalStringList(expr build.Expr) ([]string, bool) {
+	list, ok := expr.(*build.ListExpr)
+	if !ok {
+		return nil, false
+	}
+	values := make([]string, 0, len(list.List))
+	for _, item := range list.List {
+		value, ok := item.(*build.StringExpr)
+		if !ok {
+			return nil, false
+		}
+		values = append(values, value.Value)
+	}
+	return values, true
 }
 
 func matchesSourceGlob(source string, patterns []string, excludes []string) bool {

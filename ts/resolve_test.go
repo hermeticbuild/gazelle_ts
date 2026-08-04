@@ -572,6 +572,49 @@ func TestResolve_MappedTsBinaryPopulatesTsconfigTypes(t *testing.T) {
 	}
 }
 
+func TestResolve_TsBinaryPreservesNonliteralData(t *testing.T) {
+	cfg := newTsConfig()
+	c := config.New()
+	c.Exts[languageName] = cfg
+	resolveConfigurer := &gazelleresolve.Configurer{}
+	resolveConfigurer.RegisterFlags(flag.NewFlagSet("test", flag.ContinueOnError), "", c)
+	resolveConfigurer.Configure(c, "", nil)
+
+	file, err := rule.LoadData("BUILD.bazel", "apps/cli", []byte(`
+ts_binary(
+    name = "cli",
+    data = select({
+        "//conditions:default": ["runtime.json"],
+    }),
+)
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := file.Rules[0]
+	data := r.Attr("data")
+	lang := &tsLang{
+		packageDeps:       map[string]bool{"@types/node": true},
+		subpathImportsMap: map[string][]string{},
+	}
+
+	lang.Resolve(
+		c,
+		nil,
+		nil,
+		r,
+		ImportData{Imports: []ImportStatement{{ImportPath: "node:fs"}}},
+		label.Label{Pkg: "apps/cli", Name: "cli"},
+	)
+
+	if r.Attr("data") != data {
+		t.Fatal("nonliteral data expression was replaced")
+	}
+	if got, want := r.AttrStrings("tsconfig_types"), []string{"node"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("tsconfig_types = %v, want %v", got, want)
+	}
+}
+
 func TestMatchSubpathImportPattern_NonSuffixWildcard(t *testing.T) {
 	capture, ok := matchSubpathImportPattern("#generated/typespec/rest/*/index.js", "#generated/typespec/rest/users/index.js")
 	if !ok {

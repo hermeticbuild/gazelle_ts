@@ -221,28 +221,74 @@ func TestExistingRuleOwnedSources(t *testing.T) {
 	test := rule.NewRule("js_test", "cli_test")
 	test.SetAttr("entry_point", "cli.test.ts")
 	resource := rule.NewRule("filegroup", "templates")
-	resource.SetAttr("data", []string{"template.ts"})
+	resource.SetAttr("srcs", []string{"template.ts"})
+	resource.SetAttr("data", []string{"schema.ts"})
 	generated := rule.NewRule(KindTsLibrary, "pkg")
 	generated.SetAttr("srcs", []string{"library.ts"})
-	file := &rule.File{Rules: []*rule.Rule{binary, test, resource, generated}}
+	generated.SetAttr("data", []string{"generated-resource.ts"})
+	generatedTest := rule.NewRule(KindTsTest, "pkg_test")
+	generatedTest.SetAttr("data", []string{"stale.test.ts"})
+	file := &rule.File{Rules: []*rule.Rule{binary, test, resource, generated, generatedTest}}
 
 	owned := existingRuleOwnedSources(
 		c,
 		file,
 		cfg,
-		[]string{"cli.ts", "cli.test.ts", "template.ts", "library.ts"},
+		[]string{
+			"cli.ts",
+			"cli.test.ts",
+			"template.ts",
+			"schema.ts",
+			"library.ts",
+			"generated-resource.ts",
+			"stale.test.ts",
+		},
 		"pkg",
 		"pkg_test",
 		"pkg_visual_library",
 	)
 
 	want := map[string]bool{
-		"cli.test.ts": true,
-		"cli.ts":      true,
-		"template.ts": true,
+		"cli.test.ts":           true,
+		"cli.ts":                true,
+		"generated-resource.ts": true,
+		"schema.ts":             true,
+		"template.ts":           true,
 	}
 	if !reflect.DeepEqual(owned, want) {
 		t.Fatalf("owned sources = %v, want %v", owned, want)
+	}
+}
+
+func TestLocalSourcesFromAttr_CompositeExpressions(t *testing.T) {
+	file, err := rule.LoadData("BUILD.bazel", "pkg", []byte(`
+filegroup(
+    name = "resources",
+    srcs = [":literal.ts"] + glob(
+        ["*.template.ts"],
+        exclude = ["excluded.template.ts"],
+    ) + select({
+        "//conditions:default": ["./selected.ts"],
+        ":alternate": ["conditional.ts"],
+    }),
+)
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	available := map[string]bool{
+		"conditional.ts":       true,
+		"excluded.template.ts": true,
+		"literal.ts":           true,
+		"owned.template.ts":    true,
+		"selected.ts":          true,
+		"unrelated.ts":         true,
+	}
+
+	got := localSourcesFromAttr(file.Rules[0], "srcs", available)
+	want := []string{"conditional.ts", "literal.ts", "owned.template.ts", "selected.ts"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("local sources = %v, want %v", got, want)
 	}
 }
 

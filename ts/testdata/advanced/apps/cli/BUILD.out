@@ -5,9 +5,11 @@ load("//tools:ts.bzl", "myorg_ts_binary", "myorg_ts_library")
 # owns name, entry_point, env, etc.; the plugin fills in data deps.
 myorg_ts_binary(
     name = "cli_bin",
+    srcs = glob(["*.cli.ts"]),
     data = [
         "users.json",
         "//:node_modules/@myrepo_generated/synthetic",
+        "//:node_modules/@tanstack/react-query",
         "//:node_modules/@types/node",
         "//packages/core",
         "//packages/utils/math/deep",
@@ -17,13 +19,31 @@ myorg_ts_binary(
     tsconfig_types = ["node"],
 )
 
+myorg_ts_binary(
+    name = "platform_bin",
+    data = select({
+        "//conditions:default": ["platform-config.json"],
+    }),
+    entry_point = "platform.ts",
+    tsconfig_types = ["node"],
+)
+
 filegroup(
     name = "templates",
-    srcs = glob(["*.template.ts"]),
+    srcs = glob(
+        ["*.template.ts"],
+        exclude = ["excluded.template.ts"],
+    ),
 )
 
 myorg_ts_library(
     name = "cli",
-    srcs = ["types.d.ts"],
+    srcs = [
+        "excluded.template.ts",
+        "types.d.ts",
+    ],
+    data = select({
+        "//conditions:default": ["library.resource.ts"],
+    }),
     visibility = ["//visibility:public"],
 )
