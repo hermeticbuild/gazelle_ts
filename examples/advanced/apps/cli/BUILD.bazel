@@ -6,7 +6,7 @@ load("//tools:ts.bzl", "myorg_ts_binary", "myorg_ts_library")
 myorg_ts_binary(
     name = "cli_bin",
     data = [
-        "users.json",  # keep
+        "users.json",
         "//:node_modules/@myrepo_generated/synthetic",
         "//:node_modules/@types/node",
         "//packages/core",
@@ -17,19 +17,13 @@ myorg_ts_binary(
     tsconfig_types = ["node"],
 )
 
+filegroup(
+    name = "templates",
+    srcs = glob(["*.template.ts"]),
+)
+
 myorg_ts_library(
     name = "cli",
-    srcs = [
-        "main.ts",
-        "types.d.ts",
-    ],
-    tsconfig_types = ["node"],
+    srcs = ["types.d.ts"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//:node_modules/@myrepo_generated/synthetic",
-        "//:node_modules/@types/node",
-        "//packages/core",
-        "//packages/utils/math/deep",
-        "//tools:mystery",
-    ],
 )

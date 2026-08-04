@@ -130,7 +130,8 @@ func (l *tsLang) Resolve(
 		// for both stock js_binary and the abstract ts_binary.
 		resolved := l.resolveImportsToDeps(c, importData.Imports, from, ix, cfg)
 		globalResolved := resolveGlobalsToDeps(importData.Globals, cfg)
-		all := append([]string{}, resolved.external...)
+		all := append([]string{}, r.AttrStrings("data")...)
+		all = append(all, resolved.external...)
 		all = append(all, resolved.internal...)
 		all = append(all, globalResolved.external...)
 		setOrDelete(r, "data", all)

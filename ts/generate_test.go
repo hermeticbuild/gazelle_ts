@@ -3,6 +3,9 @@ package ts
 import (
 	"reflect"
 	"testing"
+
+	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
 func TestIsTypeScriptFile(t *testing.T) {
@@ -207,6 +210,69 @@ func TestCollectSrcs(t *testing.T) {
 	}
 	if len(parts.bundlerConfigs) != 0 {
 		t.Errorf("bundlerConfigs = %v, want empty", parts.bundlerConfigs)
+	}
+}
+
+func TestExistingRuleOwnedSources(t *testing.T) {
+	cfg := newTsConfig()
+	c := config.New()
+	binary := rule.NewRule(KindTsBinary, "cli")
+	binary.SetAttr("srcs", []string{"cli.ts"})
+	test := rule.NewRule("js_test", "cli_test")
+	test.SetAttr("entry_point", "cli.test.ts")
+	resource := rule.NewRule("filegroup", "templates")
+	resource.SetAttr("data", []string{"template.ts"})
+	generated := rule.NewRule(KindTsLibrary, "pkg")
+	generated.SetAttr("srcs", []string{"library.ts"})
+	file := &rule.File{Rules: []*rule.Rule{binary, test, resource, generated}}
+
+	owned := existingRuleOwnedSources(
+		c,
+		file,
+		cfg,
+		[]string{"cli.ts", "cli.test.ts", "template.ts", "library.ts"},
+		"pkg",
+		"pkg_test",
+		"pkg_visual_library",
+	)
+
+	want := map[string]bool{
+		"cli.test.ts": true,
+		"cli.ts":      true,
+		"template.ts": true,
+	}
+	if !reflect.DeepEqual(owned, want) {
+		t.Fatalf("owned sources = %v, want %v", owned, want)
+	}
+}
+
+func TestPartitionedSrcsRemoveOwned(t *testing.T) {
+	parts := partitionedSrcs{
+		lib:           []string{"cli.ts", "library.ts"},
+		test:          []string{"cli.test.ts", "library.test.ts"},
+		visualLibrary: []string{"owned.story.tsx", "visible.story.tsx"},
+		bundlerConfigs: map[int][]string{
+			0: {"owned.config.ts", "visible.config.ts"},
+		},
+	}
+	parts.removeOwned(map[string]bool{
+		"cli.ts":          true,
+		"cli.test.ts":     true,
+		"owned.story.tsx": true,
+		"owned.config.ts": true,
+	})
+
+	if got, want := parts.lib, []string{"library.ts"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("library sources = %v, want %v", got, want)
+	}
+	if got, want := parts.test, []string{"library.test.ts"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("test sources = %v, want %v", got, want)
+	}
+	if got, want := parts.visualLibrary, []string{"visible.story.tsx"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("visual sources = %v, want %v", got, want)
+	}
+	if got, want := parts.bundlerConfigs[0], []string{"visible.config.ts"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("bundler sources = %v, want %v", got, want)
 	}
 }
 

@@ -554,6 +554,7 @@ func TestResolve_MappedTsBinaryPopulatesTsconfigTypes(t *testing.T) {
 		subpathImportsMap: map[string][]string{},
 	}
 	r := rule.NewRule("myorg_ts_binary", "cli")
+	r.SetAttr("data", []string{"runtime.json"})
 	lang.Resolve(
 		c,
 		nil,
@@ -566,7 +567,7 @@ func TestResolve_MappedTsBinaryPopulatesTsconfigTypes(t *testing.T) {
 	if got, want := r.AttrStrings("tsconfig_types"), []string{"node"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("tsconfig_types = %v, want %v", got, want)
 	}
-	if got, want := r.AttrStrings("data"), []string{"//:node_modules/@types/node"}; !reflect.DeepEqual(got, want) {
+	if got, want := r.AttrStrings("data"), []string{"//:node_modules/@types/node", "runtime.json"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("data = %v, want %v", got, want)
 	}
 }

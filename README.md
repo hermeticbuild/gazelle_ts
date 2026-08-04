@@ -246,11 +246,18 @@ or another tool:
 # gazelle:exclude vitest.storybook.config.ts
 ```
 
-### 8. Keep Hand-Written Binaries Managed
+### 8. Respect Existing Source Ownership
 
 Gazelle never generates `ts_binary` or `js_binary`, but it recognizes existing
 rules of those kinds, scans their `entry_point` and `srcs` imports, and keeps
-`data` in sync. For `ts_binary`, it also manages `tsconfig_types`.
+their inferred `data` dependencies in sync without dropping explicit runtime
+data. For `ts_binary`, it also manages `tsconfig_types`.
+
+Package-local TypeScript files already named by another rule's `entry_point`,
+`srcs`, or `data` are omitted from generated library, test, visual-library,
+and bundler-config rules. Literal lists and `glob()` expressions are supported.
+This lets binaries, resource bundles, and custom runners own their files without
+blanket Gazelle exclusions or duplicate compilation targets.
 
 ## Supported Directives
 
@@ -452,7 +459,7 @@ runs.
 | Attr | Kind | Behavior |
 |---|---|---|
 | `entry_point` / `srcs` | both | Hand-written by the user; Gazelle scans these files. |
-| `data` | both | Replaced with resolved deps from imports. |
+| `data` | both | Existing runtime data merged with resolved deps from imports. |
 | `tsconfig_types` | `ts_binary` only | Inferred ambient type names. |
 
 ## Architecture

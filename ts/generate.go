@@ -51,6 +51,16 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 
 	libName, testName, visualLibraryName := resolveRuleNames(cfg, args.Rel)
 	parts := collectSrcs(args.RegularFiles, cfg)
+	ownedSources := existingRuleOwnedSources(
+		args.Config,
+		args.File,
+		cfg,
+		args.RegularFiles,
+		libName,
+		testName,
+		visualLibraryName,
+	)
+	parts.removeOwned(ownedSources)
 	libSrcs := parts.lib
 	testSrcs := parts.test
 	visualLibrarySrcs := parts.visualLibrary
@@ -70,6 +80,7 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		kind  string
 		name  string
 		files []string // package-relative TS files referenced by the rule
+		data  []string // explicit runtime data preserved while imports are resolved
 	}
 	var binaries []binaryRef
 	if args.File != nil {
@@ -88,7 +99,11 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			if canonical == "" {
 				continue
 			}
-			ref := binaryRef{kind: canonical, name: r.Name()}
+			ref := binaryRef{
+				kind: canonical,
+				name: r.Name(),
+				data: append([]string(nil), r.AttrStrings("data")...),
+			}
 			candidates := append([]string{r.AttrString("entry_point")}, r.AttrStrings("srcs")...)
 			for _, c := range candidates {
 				if c == "" || !isTypeScriptFile(c, cfg) {
@@ -118,6 +133,9 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		allRefs, _ = l.extractImportsBatch(tsFiles)
 		for _, f := range args.RegularFiles {
 			if !isTypeScriptFile(f, cfg) {
+				continue
+			}
+			if ownedSources[filepath.ToSlash(f)] {
 				continue
 			}
 			fullPath := filepath.Join(args.Dir, f)
@@ -220,7 +238,11 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			imps = append(imps, refs.Imports...)
 			globals = append(globals, refs.Globals...)
 		}
-		genRules = append(genRules, rule.NewRule(b.kind, b.name))
+		r := rule.NewRule(b.kind, b.name)
+		if len(b.data) > 0 {
+			r.SetAttr("data", b.data)
+		}
+		genRules = append(genRules, r)
 		genImports = append(genImports, ImportData{
 			Imports: imps,
 			Globals: globals,
@@ -380,6 +402,130 @@ type partitionedSrcs struct {
 	test           []string
 	visualLibrary  []string
 	bundlerConfigs map[int][]string
+}
+
+func (p *partitionedSrcs) removeOwned(owned map[string]bool) {
+	p.lib = withoutOwnedSources(p.lib, owned)
+	p.test = withoutOwnedSources(p.test, owned)
+	p.visualLibrary = withoutOwnedSources(p.visualLibrary, owned)
+	for index, sources := range p.bundlerConfigs {
+		p.bundlerConfigs[index] = withoutOwnedSources(sources, owned)
+	}
+}
+
+func withoutOwnedSources(sources []string, owned map[string]bool) []string {
+	kept := make([]string, 0, len(sources))
+	for _, source := range sources {
+		if !owned[filepath.ToSlash(source)] {
+			kept = append(kept, source)
+		}
+	}
+	return kept
+}
+
+func existingRuleOwnedSources(
+	c *config.Config,
+	file *rule.File,
+	cfg *tsConfig,
+	regularFiles []string,
+	libName string,
+	testName string,
+	visualLibraryName string,
+) map[string]bool {
+	owned := map[string]bool{}
+	if file == nil {
+		return owned
+	}
+
+	available := make(map[string]bool, len(regularFiles))
+	for _, source := range regularFiles {
+		available[filepath.ToSlash(source)] = true
+	}
+
+	for _, r := range file.Rules {
+		if isGeneratedRule(c, r, cfg, libName, testName, visualLibraryName) {
+			continue
+		}
+		for _, attr := range []string{"entry_point", "srcs", "data"} {
+			for _, source := range localSourcesFromAttr(r, attr, available) {
+				if isTypeScriptFile(source, cfg) {
+					owned[source] = true
+				}
+			}
+		}
+	}
+	return owned
+}
+
+func isGeneratedRule(
+	c *config.Config,
+	r *rule.Rule,
+	cfg *tsConfig,
+	libName string,
+	testName string,
+	visualLibraryName string,
+) bool {
+	if kindMatches(c, r.Kind(), KindTsLibrary) && r.Name() == libName {
+		return true
+	}
+	if kindMatches(c, r.Kind(), KindTsTest) && r.Name() == testName {
+		return true
+	}
+	if kindMatches(c, r.Kind(), KindTsVisualLibrary) && r.Name() == visualLibraryName {
+		return true
+	}
+	if !kindMatches(c, r.Kind(), KindBundlerConfig) {
+		return false
+	}
+	for _, spec := range cfg.bundlerConfigSpecs {
+		if spec.Name == r.Name() {
+			return true
+		}
+	}
+	return false
+}
+
+func localSourcesFromAttr(r *rule.Rule, attr string, available map[string]bool) []string {
+	seen := map[string]bool{}
+	var sources []string
+	add := func(source string) {
+		source = filepath.ToSlash(source)
+		if !available[source] || seen[source] {
+			return
+		}
+		seen[source] = true
+		sources = append(sources, source)
+	}
+
+	if value := r.AttrString(attr); value != "" {
+		add(value)
+	}
+	for _, value := range r.AttrStrings(attr) {
+		add(value)
+	}
+	if glob, ok := rule.ParseGlobExpr(r.Attr(attr)); ok {
+		for source := range available {
+			if matchesSourceGlob(source, glob.Patterns, glob.Excludes) {
+				add(source)
+			}
+		}
+	}
+	sort.Strings(sources)
+	return sources
+}
+
+func matchesSourceGlob(source string, patterns []string, excludes []string) bool {
+	for _, exclude := range excludes {
+		if matchPathPattern(exclude, source) {
+			return false
+		}
+	}
+	for _, pattern := range patterns {
+		if matchPathPattern(pattern, source) {
+			return true
+		}
+	}
+	return false
 }
 
 // collectSrcs partitions the directory's files for emission. Bundler-config
