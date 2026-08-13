@@ -110,11 +110,18 @@ A typical wrapper file:
 load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_test")
 
+def _has_implementation_source(srcs):
+    for src in srcs:
+        if not src.endswith(".d.ts"):
+            return True
+    return False
+
 def myrepo_ts_library(name, srcs, **kwargs):
     ts_project(
         name = name,
         srcs = srcs,
-        composite = True,
+        # TypeScript does not emit build info for declaration-only projects.
+        composite = _has_implementation_source(srcs),
         declaration = True,
         declaration_map = True,
         source_map = True,

@@ -21,17 +21,27 @@ load("@aspect_rules_js//js:defs.bzl", _js_binary = "js_binary")
 load("@aspect_rules_ts//ts:defs.bzl", _ts_project = "ts_project")
 load("@npm//:vitest/package_json.bzl", _vitest_bin = "bin")
 
+def _has_implementation_source(srcs):
+    for src in srcs:
+        if not src.endswith(".d.ts"):
+            return True
+    return False
+
 def myorg_ts_library(name, srcs, tsconfig_types = None, **kwargs):
     """Project defaults baked in: shared tsconfig + project-references
     compile flags. The plugin doesn't emit these on ts_library."""
+    has_implementation_source = _has_implementation_source(srcs)
     _ts_project(
         name = name,
         srcs = srcs,
-        composite = True,
+        composite = has_implementation_source,
         declaration = True,
         declaration_map = True,
         source_map = True,
         tsconfig = "//:tsconfig",
+        # The shared config enables composite globally, but declaration-only
+        # projects do not emit the build-info output that rules_ts predicts.
+        validate = has_implementation_source,
         **kwargs
     )
 

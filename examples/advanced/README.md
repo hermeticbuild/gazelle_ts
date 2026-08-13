@@ -21,7 +21,7 @@ A self-contained Bazel workspace that exercises the `ts` plugin against a repres
 
 ## What this verifies
 
-- `ts_library` rules with cross-package `deps` resolved across arbitrary nesting depth; the wrapper macro turns them into `ts_project` with TS project references (`composite = True`).
+- `ts_library` rules with cross-package `deps` resolved across arbitrary nesting depth; the wrapper macro turns implementation sources into `ts_project` targets with TS project references (`composite = True`) while keeping declaration-only targets non-composite.
 - `ts_test` targets generated for `*.test.ts` files; mapped via `# gazelle:map_kind` to `vitest_test` (a multi-entry runner that auto-discovers from `data`).
 - npm packages auto-paired with `@types/*` when present in `package.json`.
 - Node.js builtins resolve to `@types/node`.
@@ -50,7 +50,7 @@ bazel test //...
 | [`tsconfig.json`](tsconfig.json) | `composite`, `declaration`, `declarationMap`, `sourceMap` on (matching the wrapper macro's emitted attrs), `paths` mirroring `package.json` `imports`. |
 | [`BUILD.bazel`](BUILD.bazel) | `npm_link_all_packages` (pnpm-driven), `npm_link_package` for the synthetic package, gazelle directives (`ts_npm_link_pattern`, `resolve_regexp`, `map_kind`s). |
 | [`packages/synthetic/BUILD.bazel`](packages/synthetic/BUILD.bazel) | Three `genrule`s producing `index.js` / `package.json` / `index.d.ts`, an `npm_package` wrapping them. The root linker entry maps it to `//:node_modules/@myrepo_generated/synthetic`. |
-| [`tools/ts.bzl`](tools/ts.bzl) | Project wrappers (`myorg_ts_library`, `vitest_test`) that generated BUILDs route to via `# gazelle:map_kind`. Forwards to stock `ts_project` / `js_test`. |
+| [`tools/ts.bzl`](tools/ts.bzl) | Project wrappers (`myorg_ts_library`, `vitest_test`) that generated BUILDs route to via `# gazelle:map_kind`. Forwards to stock `ts_project` / `js_test`; declaration-only projects disable composite output and validation against the shared composite config. |
 | [`tools/BUILD.bazel`](tools/BUILD.bazel) | A `js_library` named `mystery` that the `# gazelle:resolve ts ts mystery:banner //tools:mystery` directive maps an arbitrary import string to. |
 
 ### Demonstrated directives
