@@ -482,6 +482,9 @@ func existingRuleOwnedSources(
 	}
 
 	for _, r := range file.Rules {
+		if isBinaryLibraryRule(c, r) {
+			continue
+		}
 		if isGeneratedRule(c, r, cfg, libName, testName, visualLibraryName) {
 			continue
 		}
@@ -494,6 +497,11 @@ func existingRuleOwnedSources(
 		}
 	}
 	return owned
+}
+
+func isBinaryLibraryRule(c *config.Config, r *rule.Rule) bool {
+	return kindMatches(c, r.Kind(), KindTsLibrary) &&
+		stringSliceContains(r.AttrStrings("tags"), binaryLibraryTag)
 }
 
 func isGeneratedRule(

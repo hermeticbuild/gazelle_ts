@@ -250,7 +250,10 @@ func TestExistingRuleOwnedSources(t *testing.T) {
 	generated.SetAttr("data", []string{"generated-resource.ts"})
 	generatedTest := rule.NewRule(KindTsTest, "pkg_test")
 	generatedTest.SetAttr("data", []string{"stale.test.ts"})
-	file := &rule.File{Rules: []*rule.Rule{binary, test, resource, generated, generatedTest}}
+	privateBinaryLibrary := rule.NewRule(KindTsLibrary, "cli_lib")
+	privateBinaryLibrary.SetAttr("srcs", []string{"types.d.ts"})
+	privateBinaryLibrary.SetAttr("tags", []string{binaryLibraryTag})
+	file := &rule.File{Rules: []*rule.Rule{binary, test, resource, generated, generatedTest, privateBinaryLibrary}}
 
 	owned := existingRuleOwnedSources(
 		c,
@@ -264,6 +267,7 @@ func TestExistingRuleOwnedSources(t *testing.T) {
 			"library.ts",
 			"generated-resource.ts",
 			"stale.test.ts",
+			"types.d.ts",
 		},
 		"pkg",
 		"pkg_test",
