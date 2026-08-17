@@ -15,8 +15,7 @@ import (
 // kindMatches returns true when ruleKind matches the canonical name, accounting
 // for `# gazelle:map_kind` rewrites: a rule on disk may carry the post-mapped
 // kind name even when our plugin emits and reasons about the canonical one.
-// Without this check we'd skip user-mapped js_binary rules and stop
-// auto-managing their `data` attr.
+// Without this check we'd skip user-mapped binary rules.
 func kindMatches(c *config.Config, ruleKind, canonical string) bool {
 	if ruleKind == canonical {
 		return true
@@ -62,18 +61,14 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		visualLibraryName,
 	)
 	parts.removeOwned(ownedSources)
-	libSrcs := parts.lib
-	testSrcs := parts.test
-	visualLibrarySrcs := parts.visualLibrary
 
-	// Hand-written binary rules in this BUILD whose `data` we manage. We
-	// never generate them — we piggyback on the user's existing rule,
-	// scan its entry_point/srcs for imports, and let Resolve set data.
-	// Both stock js_binary and the abstract ts_binary go through here.
+	// Hand-written binaries stay thin, like Gazelle's go_binary: package
+	// sources and imports belong to the generated library, while the binary
+	// consumes that library. We only discover enough here to attach the
+	// package library to an existing binary; we never generate the binary.
 	type binaryRef struct {
-		kind  string
-		name  string
-		files []string // package-relative TS files referenced by the rule
+		kind string
+		name string
 	}
 	var binaries []binaryRef
 	binarySources := map[string]bool{}
@@ -93,33 +88,32 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			if canonical == "" {
 				continue
 			}
-			ref := binaryRef{
-				kind: canonical,
-				name: r.Name(),
-			}
+			ref := binaryRef{kind: canonical, name: r.Name()}
 			candidates := append(
 				localSourcesFromAttr(r, "entry_point", available),
 				localSourcesFromAttr(r, "srcs", available)...,
 			)
-			seen := map[string]bool{}
+			found := false
 			for _, c := range candidates {
-				if !isTypeScriptFile(c, cfg) || seen[c] {
-					continue
+				if isTypeScriptFile(c, cfg) {
+					binarySources[c] = true
+					found = true
 				}
-				seen[c] = true
-				ref.files = append(ref.files, c)
-				binarySources[c] = true
 			}
-			if len(ref.files) > 0 {
+			if found {
 				binaries = append(binaries, ref)
 			}
 		}
 	}
+	parts.promoteToLibrary(binarySources)
+	libSrcs := parts.lib
+	testSrcs := parts.test
+	visualLibrarySrcs := parts.visualLibrary
 
 	var tsFiles []string
 	for _, f := range args.RegularFiles {
 		f = filepath.ToSlash(f)
-		if !isTypeScriptFile(f, cfg) || (ownedSources[f] && !binarySources[f]) {
+		if !isTypeScriptFile(f, cfg) || ownedSources[f] {
 			continue
 		}
 		tsFiles = append(tsFiles, filepath.Join(args.Dir, f))
@@ -143,6 +137,11 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			}
 			fullPath := filepath.Join(args.Dir, f)
 			refs := allRefs[fullPath]
+			if binarySources[filepath.ToSlash(f)] {
+				sourceImports = append(sourceImports, refs.Imports...)
+				sourceGlobals = append(sourceGlobals, refs.Globals...)
+				continue
+			}
 			// Bundler-config classification wins over story/test
 			// classification — matches collectSrcs.
 			if idx, ok := matchBundlerConfigSpec(f, cfg); ok {
@@ -229,24 +228,20 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		})
 	}
 
-	// Existing binary rules (js_binary, ts_binary) — emit a placeholder so
-	// Resolve runs against each, but don't set any attrs. The merge engine
-	// keeps the user's entry_point, srcs, env, etc.; Resolve fills in
-	// `data` from the entry_point/srcs imports.
+	// Existing binary rules consume the generated package library. This mirrors
+	// Gazelle Go's private go_library + embedding go_binary shape: imports stay
+	// on one compile target instead of being re-resolved onto the launcher.
 	for _, b := range binaries {
-		var imps []ImportStatement
-		var globals []GlobalReference
-		for _, f := range b.files {
-			refs := allRefs[filepath.Join(args.Dir, f)]
-			imps = append(imps, refs.Imports...)
-			globals = append(globals, refs.Globals...)
-		}
 		r := rule.NewRule(b.kind, b.name)
+		if len(libSrcs) > 0 {
+			if b.kind == KindTsBinary {
+				r.SetAttr("deps", []string{":" + libName})
+			} else {
+				r.SetAttr("data", []string{":" + libName})
+			}
+		}
 		genRules = append(genRules, r)
-		genImports = append(genImports, ImportData{
-			Imports: imps,
-			Globals: globals,
-		})
+		genImports = append(genImports, ImportData{})
 	}
 
 	// Bundler-config rules — one per spec target name. Multiple specs may
@@ -413,6 +408,27 @@ func (p *partitionedSrcs) removeOwned(owned map[string]bool) {
 	}
 }
 
+func (p *partitionedSrcs) promoteToLibrary(sources map[string]bool) {
+	if len(sources) == 0 {
+		return
+	}
+	p.test = withoutOwnedSources(p.test, sources)
+	p.visualLibrary = withoutOwnedSources(p.visualLibrary, sources)
+	for index, bucket := range p.bundlerConfigs {
+		p.bundlerConfigs[index] = withoutOwnedSources(bucket, sources)
+	}
+	seen := make(map[string]bool, len(p.lib)+len(sources))
+	for _, source := range p.lib {
+		seen[filepath.ToSlash(source)] = true
+	}
+	for source := range sources {
+		if !seen[source] {
+			p.lib = append(p.lib, source)
+		}
+	}
+	sort.Strings(p.lib)
+}
+
 func withoutOwnedSources(sources []string, owned map[string]bool) []string {
 	kept := make([]string, 0, len(sources))
 	for _, source := range sources {
@@ -443,6 +459,9 @@ func existingRuleOwnedSources(
 	}
 
 	for _, r := range file.Rules {
+		if isManagedBinaryRule(c, r) {
+			continue
+		}
 		if isGeneratedRule(c, r, cfg, libName, testName, visualLibraryName) {
 			continue
 		}
@@ -455,6 +474,15 @@ func existingRuleOwnedSources(
 		}
 	}
 	return owned
+}
+
+func isManagedBinaryRule(c *config.Config, r *rule.Rule) bool {
+	for _, kind := range managedBinaryKinds {
+		if kindMatches(c, r.Kind(), kind) {
+			return true
+		}
+	}
+	return false
 }
 
 func isGeneratedRule(

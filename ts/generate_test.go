@@ -250,7 +250,6 @@ func TestExistingRuleOwnedSources(t *testing.T) {
 
 	want := map[string]bool{
 		"cli.test.ts": true,
-		"cli.ts":      true,
 		"template.ts": true,
 	}
 	if !reflect.DeepEqual(owned, want) {
@@ -317,6 +316,30 @@ func TestPartitionedSrcsRemoveOwned(t *testing.T) {
 	}
 	if got, want := parts.bundlerConfigs[0], []string{"visible.config.ts"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("bundler sources = %v, want %v", got, want)
+	}
+}
+
+func TestPartitionedSrcsPromoteBinarySourcesToLibrary(t *testing.T) {
+	parts := partitionedSrcs{
+		lib:           []string{"library.ts"},
+		test:          []string{"runner.test.ts"},
+		visualLibrary: []string{"preview.story.tsx"},
+		bundlerConfigs: map[int][]string{
+			0: {"tool.config.ts"},
+		},
+	}
+	parts.promoteToLibrary(map[string]bool{
+		"runner.test.ts":    true,
+		"preview.story.tsx": true,
+		"tool.config.ts":    true,
+	})
+
+	want := []string{"library.ts", "preview.story.tsx", "runner.test.ts", "tool.config.ts"}
+	if !reflect.DeepEqual(parts.lib, want) {
+		t.Errorf("library sources = %v, want %v", parts.lib, want)
+	}
+	if len(parts.test) != 0 || len(parts.visualLibrary) != 0 || len(parts.bundlerConfigs[0]) != 0 {
+		t.Errorf("binary sources remained in another bucket: %+v", parts)
 	}
 }
 
@@ -413,9 +436,7 @@ func TestCollectSrcs_BundlerOverridesTest(t *testing.T) {
 }
 
 func TestManagedBinaryKinds_IncludesBoth(t *testing.T) {
-	// ts_binary and js_binary should both flow through the same data-attr
-	// management path. Drift here means the discovery loop in GenerateRules
-	// silently skips one of them.
+	// Both launcher kinds should attach to the generated package library.
 	want := map[string]bool{KindJsBinary: true, KindTsBinary: true}
 	got := map[string]bool{}
 	for _, k := range managedBinaryKinds {
@@ -427,17 +448,18 @@ func TestManagedBinaryKinds_IncludesBoth(t *testing.T) {
 }
 
 func TestKinds_HasTsBinary(t *testing.T) {
-	// Without a KindInfo entry the merge engine treats ts_binary rules as
-	// unmanaged: data wouldn't be a ResolveAttr and wouldn't be replaced.
 	if _, ok := tsKinds[KindTsBinary]; !ok {
 		t.Fatalf("tsKinds missing %q", KindTsBinary)
 	}
 	info := tsKinds[KindTsBinary]
-	if !info.ResolveAttrs["data"] {
-		t.Errorf("ts_binary should have data as ResolveAttr")
+	if !info.ResolveAttrs["deps"] {
+		t.Errorf("ts_binary should have deps as ResolveAttr")
 	}
-	if info.MergeableAttrs["data"] {
-		t.Errorf("ts_binary data should not be merged before Resolve")
+	if info.ResolveAttrs["data"] {
+		t.Errorf("ts_binary data should remain user-owned")
+	}
+	if info.ResolveAttrs["tsconfig_types"] {
+		t.Errorf("ts_binary typings should come from its library")
 	}
 }
 
@@ -450,7 +472,7 @@ func TestKinds_MergeAndResolveAttrsAreDisjoint(t *testing.T) {
 		}
 	}
 
-	for _, kind := range []string{KindTsLibrary, KindTsTest, KindTsVisualLibrary, KindTsBinary, KindBundlerConfig} {
+	for _, kind := range []string{KindTsLibrary, KindTsTest, KindTsVisualLibrary, KindBundlerConfig} {
 		info := tsKinds[kind]
 		if !info.ResolveAttrs["tsconfig_types"] {
 			t.Errorf("%s should have tsconfig_types as ResolveAttr", kind)

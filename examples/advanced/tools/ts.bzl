@@ -45,12 +45,9 @@ def myorg_ts_library(name, srcs, tsconfig_types = None, **kwargs):
         **kwargs
     )
 
-def myorg_ts_binary(name, tsconfig_types = None, **kwargs):
-    """Thin wrapper over js_binary for TS entry points. A real consumer
-    would set default NODE_OPTIONS, a wrapping launcher script, or
-    whatever house style the binaries should run with. The plugin
-    auto-manages `data` from the rule's entry_point/srcs imports."""
-    _js_binary(name = name, **kwargs)
+def myorg_ts_binary(name, deps = [], data = [], **kwargs):
+    """Thin launcher over the generated package library."""
+    _js_binary(name = name, data = deps + data, **kwargs)
 
 def myorg_ts_visual_library(name, srcs, deps = [], tsconfig_types = None, **kwargs):
     """Visual library typecheck target with project defaults."""

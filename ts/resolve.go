@@ -124,21 +124,8 @@ func (l *tsLang) Resolve(
 		setOrDelete(r, "tsconfig_types", tsconfigTypes)
 
 	case kindMatches(c, r.Kind(), KindJsBinary), kindMatches(c, r.Kind(), KindTsBinary):
-		// We don't generate binary rules — only fill in their `data` attr
-		// based on what their entry_point/srcs import. The user's existing
-		// entry_point, env, fixed_args, etc. are left alone. Same shape
-		// for both stock js_binary and the abstract ts_binary.
-		resolved := l.resolveImportsToDeps(c, importData.Imports, from, ix, cfg)
-		globalResolved := resolveGlobalsToDeps(importData.Globals, cfg)
-		data := append([]string{}, resolved.external...)
-		data = append(data, resolved.internal...)
-		data = append(data, globalResolved.external...)
-		setOrDelete(r, "data", data)
-		if kindMatches(c, r.Kind(), KindTsBinary) {
-			tsconfigTypes := append([]string{}, resolved.tsconfigTypes...)
-			tsconfigTypes = append(tsconfigTypes, globalResolved.tsconfigTypes...)
-			setOrDelete(r, "tsconfig_types", tsconfigTypes)
-		}
+		// Binary launchers carry only the sibling library edge set during
+		// generation. Their sources and imports are owned by ts_library.
 
 	case kindMatches(c, r.Kind(), KindBundlerConfig):
 		// Bundler-config rules are a separate compilation unit so build-time

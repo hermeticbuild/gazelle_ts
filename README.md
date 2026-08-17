@@ -139,9 +139,10 @@ def myrepo_ts_visual_library(name, srcs, deps = [], **kwargs):
     # the main library so visual-only deps stay on this target.
     ts_project(name = name, srcs = srcs, deps = deps, **kwargs)
 
-def myrepo_ts_binary(name, **kwargs):
-    # Gazelle keeps data in sync from entry_point/srcs imports.
-    js_binary(name = name, **kwargs)
+def myrepo_ts_binary(name, deps = [], data = [], **kwargs):
+    # Gazelle attaches the package library through deps. This adapter makes
+    # the library available to the underlying runtime launcher.
+    js_binary(name = name, data = deps + data, **kwargs)
 
 def myrepo_bundler_config(name, srcs, **kwargs):
     ts_project(name = name, srcs = srcs, **kwargs)
@@ -253,24 +254,23 @@ or another tool:
 # gazelle:exclude vitest.storybook.config.ts
 ```
 
-### 8. Respect Existing Source Ownership
+### 8. Keep Binaries Thin
 
 Gazelle never generates `ts_binary` or `js_binary`, but it recognizes existing
-rules of those kinds, scans their `entry_point` and `srcs` imports, and keeps
-their inferred `data` dependencies in sync. For `ts_binary`, it also manages
-`tsconfig_types`.
+rules of those kinds. Like Gazelle Go, package sources and imports stay on the
+generated library while each binary consumes that library. `ts_binary` uses a
+`deps` edge; stock `js_binary` uses its native `data` edge.
 
 Package-local TypeScript files already named by another rule's `entry_point`,
 or `srcs` are omitted from generated library, test, visual-library, and
-bundler-config rules. Literal lists, `glob()` expressions, concatenations, and
-`select()` values are supported. Use `# gazelle:exclude` for resource-only
-TypeScript files referenced through `data`.
+bundler-config rules, except binary sources, which belong to the package
+library. Literal lists, `glob()` expressions, concatenations, and `select()`
+values are supported. Use `# gazelle:exclude` for resource-only TypeScript
+files referenced through `data`.
 
-Binary `data` is managed like other Gazelle dependency attributes. Add `# keep`
-to explicit runtime entries that must survive regeneration. Mark a nonliteral
-`data` attribute with `# keep` to preserve the whole expression; Gazelle still
-scans imports and updates `tsconfig_types`, but cannot append inferred data to
-that expression.
+`ts_binary.data` remains user-owned runtime data. Since stock `js_binary` has
+no compile-dependency attribute, its generated library edge shares `data`; use
+`# keep` for additional explicit runtime entries.
 Generated `ts_test.data` remains controlled by `ts_test_data` so stale generated
 entries can be corrected on later runs.
 
@@ -312,8 +312,8 @@ Useful Gazelle directives alongside `gazelle_ts`:
 | `ts_test` | yes | `srcs`, `deps`, `data`, `tsconfig_types` | A wrapper over vitest, jest, mocha, `js_test`, or another runner. No `entry_point` is emitted. |
 | `ts_visual_library` | yes, for `*.story.tsx` and `*.visual.tsx` by default | `srcs`, `visibility`, `deps`, `tsconfig_types` | A wrapper over `ts_project` or another visual-library typecheck rule. |
 | `ts_bundler_config` | yes, from `ts_bundler_config_pattern` | `srcs`, `visibility`, `deps`, `tsconfig_types` | A wrapper over `ts_project` or equivalent tooling-config typecheck rule. |
-| `ts_binary` | no | `data`, `tsconfig_types` | A hand-written binary rule mapped through `map_kind`. Gazelle scans `entry_point` / `srcs`. |
-| `js_binary` | no | `data` | A hand-written stock rules_js binary. Gazelle scans `entry_point` / `srcs`. |
+| `ts_binary` | no | `deps` | A hand-written launcher attached to the generated package library. |
+| `js_binary` | no | `data` | A hand-written stock rules_js launcher attached to the generated package library. |
 
 The plugin does not take a transitive dependency on `aspect_rules_ts` or
 `aspect_rules_js`; the examples use those rules through local wrappers.
@@ -473,9 +473,10 @@ runs.
 
 | Attr | Kind | Behavior |
 |---|---|---|
-| `entry_point` / `srcs` | both | Hand-written by the user; Gazelle scans these files. |
-| `data` | both | Inferred import deps. Explicit values or expressions require `# keep`. |
-| `tsconfig_types` | `ts_binary` only | Inferred ambient type names. |
+| `entry_point` / `srcs` | both | Hand-written launcher inputs; their package sources remain in `ts_library`. |
+| `deps` | `ts_binary` | Generated sibling-library edge. The wrapper adapts it to its compile/runtime rule. |
+| `data` | `ts_binary` | User-owned runtime data. |
+| `data` | `js_binary` | Generated sibling-library edge. Explicit runtime values require `# keep`. |
 
 ## Architecture
 
@@ -499,9 +500,9 @@ Gazelle calls the language in three main phases:
    and apply BUILD-file directives for the current directory. At the repo root,
    package.json dependencies and imports are loaded.
 2. **GenerateRules** ([ts/generate.go](ts/generate.go)): partition files into
-   library, test, visual-library, bundler-config, and hand-written binary
-   inputs; call the Rust extractor; and emit generated rules with attached
-   import data.
+   library, test, visual-library, and bundler-config inputs; attach existing
+   binary launchers to the package library; call the Rust extractor; and emit
+   generated rules with attached import data.
 3. **Imports / Resolve** ([ts/imports.go](ts/imports.go),
    [ts/resolve.go](ts/resolve.go)): register package import specs in the
    RuleIndex, then turn extracted imports and globals into Bazel labels.

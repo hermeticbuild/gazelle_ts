@@ -2,33 +2,22 @@ load("//tools:ts.bzl", "myorg_ts_binary", "myorg_ts_library")
 
 # gazelle:exclude library.resource.ts
 
-# Hand-written ts_binary — gazelle never generates these, but it does
-# manage the `data` attr based on what entry_point/srcs imports. The user
-# owns name, entry_point, env, etc.; the plugin fills in data deps.
+# Hand-written launcher. Gazelle attaches the generated package library.
 myorg_ts_binary(
     name = "cli_bin",
     srcs = glob(["*.cli.ts"]),
-    data = [
-        "users.json",  # keep
-        "//:node_modules/@myrepo_generated/synthetic",
-        "//:node_modules/@tanstack/react-query",
-        "//:node_modules/@types/node",
-        "//packages/core",
-        "//packages/utils/math/deep",
-        "//tools:mystery",
-    ],
+    data = ["users.json"],
     entry_point = "main.ts",
-    tsconfig_types = ["node"],
+    deps = [":cli"],
 )
 
 myorg_ts_binary(
     name = "platform_bin",
-    # keep
     data = select({
         "//conditions:default": ["platform-config.json"],
     }),
     entry_point = "platform.ts",
-    tsconfig_types = ["node"],
+    deps = [":cli"],
 )
 
 filegroup(
@@ -42,11 +31,23 @@ filegroup(
 myorg_ts_library(
     name = "cli",
     srcs = [
+        "aux.cli.ts",
         "excluded.template.ts",
+        "main.ts",
+        "platform.ts",
         "types.d.ts",
     ],
     data = select({
         "//conditions:default": ["library.resource.ts"],
     }),
+    tsconfig_types = ["node"],
     visibility = ["//visibility:public"],
+    deps = [
+        "//:node_modules/@myrepo_generated/synthetic",
+        "//:node_modules/@tanstack/react-query",
+        "//:node_modules/@types/node",
+        "//packages/core",
+        "//packages/utils/math/deep",
+        "//tools:mystery",
+    ],
 )

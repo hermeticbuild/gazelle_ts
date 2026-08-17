@@ -535,7 +535,7 @@ func TestResolve_TsTestPreservesExplicitTsconfigTypes(t *testing.T) {
 	}
 }
 
-func TestResolve_MappedTsBinaryPopulatesTsconfigTypes(t *testing.T) {
+func TestResolve_MappedTsBinaryLeavesLauncherAttrsAlone(t *testing.T) {
 	cfg := newTsConfig()
 	c := config.New()
 	c.Exts[languageName] = cfg
@@ -549,11 +549,10 @@ func TestResolve_MappedTsBinaryPopulatesTsconfigTypes(t *testing.T) {
 	resolveConfigurer.RegisterFlags(flag.NewFlagSet("test", flag.ContinueOnError), "", c)
 	resolveConfigurer.Configure(c, "", nil)
 
-	lang := &tsLang{
-		packageDeps:       map[string]bool{"@types/node": true},
-		subpathImportsMap: map[string][]string{},
-	}
+	lang := &tsLang{subpathImportsMap: map[string][]string{}}
 	r := rule.NewRule("myorg_ts_binary", "cli")
+	r.SetAttr("deps", []string{":cli_lib"})
+	r.SetAttr("data", []string{"runtime.json"})
 	lang.Resolve(
 		c,
 		nil,
@@ -563,11 +562,14 @@ func TestResolve_MappedTsBinaryPopulatesTsconfigTypes(t *testing.T) {
 		label.Label{Pkg: "apps/cli", Name: "cli"},
 	)
 
-	if got, want := r.AttrStrings("tsconfig_types"), []string{"node"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("tsconfig_types = %v, want %v", got, want)
+	if got, want := r.AttrStrings("deps"), []string{":cli_lib"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("deps = %v, want %v", got, want)
 	}
-	if got, want := r.AttrStrings("data"), []string{"//:node_modules/@types/node"}; !reflect.DeepEqual(got, want) {
+	if got, want := r.AttrStrings("data"), []string{"runtime.json"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("data = %v, want %v", got, want)
+	}
+	if got := r.AttrStrings("tsconfig_types"); len(got) != 0 {
+		t.Errorf("tsconfig_types = %v, want none", got)
 	}
 }
 

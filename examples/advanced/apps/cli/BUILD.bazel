@@ -1,20 +1,11 @@
 load("//tools:ts.bzl", "myorg_ts_binary", "myorg_ts_library")
 
-# Hand-written ts_binary — gazelle never generates these, but it does
-# manage the `data` attr based on what entry_point/srcs imports. The user
-# owns name, entry_point, env, etc.; the plugin fills in data deps.
+# Hand-written launcher. Gazelle attaches the generated package library.
 myorg_ts_binary(
     name = "cli_bin",
-    data = [
-        "users.json",  # keep
-        "//:node_modules/@myrepo_generated/synthetic",
-        "//:node_modules/@types/node",
-        "//packages/core",
-        "//packages/utils/math/deep",
-        "//tools:mystery",
-    ],
+    data = ["users.json"],
     entry_point = "main.ts",
-    tsconfig_types = ["node"],
+    deps = [":cli"],
 )
 
 filegroup(
@@ -24,6 +15,17 @@ filegroup(
 
 myorg_ts_library(
     name = "cli",
-    srcs = ["types.d.ts"],
+    srcs = [
+        "main.ts",
+        "types.d.ts",
+    ],
+    tsconfig_types = ["node"],
     visibility = ["//visibility:public"],
+    deps = [
+        "//:node_modules/@myrepo_generated/synthetic",
+        "//:node_modules/@types/node",
+        "//packages/core",
+        "//packages/utils/math/deep",
+        "//tools:mystery",
+    ],
 )
