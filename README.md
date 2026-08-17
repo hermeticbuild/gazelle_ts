@@ -257,20 +257,20 @@ or another tool:
 
 Gazelle never generates `ts_binary` or `js_binary`, but it recognizes existing
 rules of those kinds, scans their `entry_point` and `srcs` imports, and keeps
-their inferred `data` dependencies in sync without dropping explicit runtime
-data. For `ts_binary`, it also manages `tsconfig_types`.
+their inferred `data` dependencies in sync. For `ts_binary`, it also manages
+`tsconfig_types`.
 
 Package-local TypeScript files already named by another rule's `entry_point`,
-`srcs`, or `data` are omitted from generated library, test, visual-library,
-and bundler-config rules. Literal lists, `glob()` expressions, concatenations,
-and `select()` values are supported. This lets binaries, resource bundles, and
-custom runners own their files without blanket Gazelle exclusions or duplicate
-compilation targets.
+or `srcs` are omitted from generated library, test, visual-library, and
+bundler-config rules. Literal lists, `glob()` expressions, concatenations, and
+`select()` values are supported. Use `# gazelle:exclude` for resource-only
+TypeScript files referenced through `data`.
 
-Binary `data` expressed as a literal string list is merged with inferred import
-dependencies. Nonliteral expressions are left untouched because Gazelle cannot
-safely append dependencies to arbitrary Starlark; their imports are still
-scanned and `ts_binary` still receives inferred `tsconfig_types`.
+Binary `data` is managed like other Gazelle dependency attributes. Add `# keep`
+to explicit runtime entries that must survive regeneration. Mark a nonliteral
+`data` attribute with `# keep` to preserve the whole expression; Gazelle still
+scans imports and updates `tsconfig_types`, but cannot append inferred data to
+that expression.
 Generated `ts_test.data` remains controlled by `ts_test_data` so stale generated
 entries can be corrected on later runs.
 
@@ -474,7 +474,7 @@ runs.
 | Attr | Kind | Behavior |
 |---|---|---|
 | `entry_point` / `srcs` | both | Hand-written by the user; Gazelle scans these files. |
-| `data` | both | Literal runtime data is merged with resolved deps; nonliteral expressions are preserved unchanged. |
+| `data` | both | Inferred import deps. Explicit values or expressions require `# keep`. |
 | `tsconfig_types` | `ts_binary` only | Inferred ambient type names. |
 
 ## Architecture

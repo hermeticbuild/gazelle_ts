@@ -73,8 +73,7 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	type binaryRef struct {
 		kind  string
 		name  string
-		files []string   // package-relative TS files referenced by the rule
-		data  build.Expr // explicit runtime data preserved while imports are resolved
+		files []string // package-relative TS files referenced by the rule
 	}
 	var binaries []binaryRef
 	binarySources := map[string]bool{}
@@ -97,7 +96,6 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			ref := binaryRef{
 				kind: canonical,
 				name: r.Name(),
-				data: r.Attr("data"),
 			}
 			candidates := append(
 				localSourcesFromAttr(r, "entry_point", available),
@@ -244,9 +242,6 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			globals = append(globals, refs.Globals...)
 		}
 		r := rule.NewRule(b.kind, b.name)
-		if b.data != nil {
-			r.SetAttr("data", b.data)
-		}
 		genRules = append(genRules, r)
 		genImports = append(genImports, ImportData{
 			Imports: imps,
@@ -448,16 +443,10 @@ func existingRuleOwnedSources(
 	}
 
 	for _, r := range file.Rules {
-		attrs := []string{"entry_point", "srcs", "data"}
 		if isGeneratedRule(c, r, cfg, libName, testName, visualLibraryName) {
-			attrs = nil
-			// ts_test.data is generated from ts_test_data and may contain stale
-			// output that a later Gazelle run must be able to replace.
-			if !kindMatches(c, r.Kind(), KindTsTest) {
-				attrs = []string{"data"}
-			}
+			continue
 		}
-		for _, attr := range attrs {
+		for _, attr := range []string{"entry_point", "srcs"} {
 			for _, source := range localSourcesFromAttr(r, attr, available) {
 				if isTypeScriptFile(source, cfg) {
 					owned[source] = true
@@ -564,37 +553,6 @@ func normalizeLocalSource(source string) string {
 	source = strings.TrimPrefix(source, ":")
 	source = strings.TrimPrefix(source, "./")
 	return source
-}
-
-func literalStringList(expr build.Expr) ([]string, bool) {
-	list, ok := expr.(*build.ListExpr)
-	if !ok {
-		return nil, false
-	}
-	values := make([]string, 0, len(list.List))
-	for _, item := range list.List {
-		value, ok := item.(*build.StringExpr)
-		if !ok {
-			return nil, false
-		}
-		if isManagedBinaryData(value) {
-			continue
-		}
-		values = append(values, value.Value)
-	}
-	return values, true
-}
-
-const managedBinaryDataComment = "gazelle:managed"
-
-func isManagedBinaryData(expr build.Expr) bool {
-	comments := append(expr.Comment().Before, expr.Comment().Suffix...)
-	for _, comment := range comments {
-		if strings.TrimSpace(strings.TrimPrefix(comment.Token, "#")) == managedBinaryDataComment {
-			return true
-		}
-	}
-	return false
 }
 
 func matchesSourceGlob(source string, patterns []string, excludes []string) bool {

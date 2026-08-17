@@ -12,7 +12,6 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/repo"
 	gazelleresolve "github.com/bazelbuild/bazel-gazelle/resolve"
 	"github.com/bazelbuild/bazel-gazelle/rule"
-	"github.com/bazelbuild/buildtools/build"
 )
 
 func TestMatchNpmPackage_Bare(t *testing.T) {
@@ -555,7 +554,6 @@ func TestResolve_MappedTsBinaryPopulatesTsconfigTypes(t *testing.T) {
 		subpathImportsMap: map[string][]string{},
 	}
 	r := rule.NewRule("myorg_ts_binary", "cli")
-	r.SetAttr("data", []string{"runtime.json"})
 	lang.Resolve(
 		c,
 		nil,
@@ -568,77 +566,8 @@ func TestResolve_MappedTsBinaryPopulatesTsconfigTypes(t *testing.T) {
 	if got, want := r.AttrStrings("tsconfig_types"), []string{"node"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("tsconfig_types = %v, want %v", got, want)
 	}
-	if got, want := r.AttrStrings("data"), []string{"//:node_modules/@types/node", "runtime.json"}; !reflect.DeepEqual(got, want) {
+	if got, want := r.AttrStrings("data"), []string{"//:node_modules/@types/node"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("data = %v, want %v", got, want)
-	}
-	list := r.Attr("data").(*build.ListExpr)
-	if !isManagedBinaryData(list.List[0]) {
-		t.Error("inferred data dependency is not marked as managed")
-	}
-	if isManagedBinaryData(list.List[1]) {
-		t.Error("explicit runtime data is marked as managed")
-	}
-	file := rule.EmptyFile("BUILD.bazel", "apps/cli")
-	r.Insert(file)
-	parsed, err := rule.LoadData("BUILD.bazel", "apps/cli", file.Format())
-	if err != nil {
-		t.Fatal(err)
-	}
-	r = parsed.Rules[0]
-
-	lang.Resolve(
-		c,
-		nil,
-		nil,
-		r,
-		ImportData{},
-		label.Label{Pkg: "apps/cli", Name: "cli"},
-	)
-	if got, want := r.AttrStrings("data"), []string{"runtime.json"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("data after import removal = %v, want %v", got, want)
-	}
-}
-
-func TestResolve_TsBinaryPreservesNonliteralData(t *testing.T) {
-	cfg := newTsConfig()
-	c := config.New()
-	c.Exts[languageName] = cfg
-	resolveConfigurer := &gazelleresolve.Configurer{}
-	resolveConfigurer.RegisterFlags(flag.NewFlagSet("test", flag.ContinueOnError), "", c)
-	resolveConfigurer.Configure(c, "", nil)
-
-	file, err := rule.LoadData("BUILD.bazel", "apps/cli", []byte(`
-ts_binary(
-    name = "cli",
-    data = select({
-        "//conditions:default": ["runtime.json"],
-    }),
-)
-`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	r := file.Rules[0]
-	data := r.Attr("data")
-	lang := &tsLang{
-		packageDeps:       map[string]bool{"@types/node": true},
-		subpathImportsMap: map[string][]string{},
-	}
-
-	lang.Resolve(
-		c,
-		nil,
-		nil,
-		r,
-		ImportData{Imports: []ImportStatement{{ImportPath: "node:fs"}}},
-		label.Label{Pkg: "apps/cli", Name: "cli"},
-	)
-
-	if r.Attr("data") != data {
-		t.Fatal("nonliteral data expression was replaced")
-	}
-	if got, want := r.AttrStrings("tsconfig_types"), []string{"node"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("tsconfig_types = %v, want %v", got, want)
 	}
 }
 

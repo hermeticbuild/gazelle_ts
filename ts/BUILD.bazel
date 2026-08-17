@@ -83,7 +83,6 @@ go_test(
     }),
     embed = [":ts"],
     deps = [
-        "@com_github_bazelbuild_buildtools//build",
         "@gazelle//rule",
     ],
 )

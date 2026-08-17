@@ -249,11 +249,9 @@ func TestExistingRuleOwnedSources(t *testing.T) {
 	)
 
 	want := map[string]bool{
-		"cli.test.ts":           true,
-		"cli.ts":                true,
-		"generated-resource.ts": true,
-		"schema.ts":             true,
-		"template.ts":           true,
+		"cli.test.ts": true,
+		"cli.ts":      true,
+		"template.ts": true,
 	}
 	if !reflect.DeepEqual(owned, want) {
 		t.Fatalf("owned sources = %v, want %v", owned, want)
@@ -438,19 +436,24 @@ func TestKinds_HasTsBinary(t *testing.T) {
 	if !info.ResolveAttrs["data"] {
 		t.Errorf("ts_binary should have data as ResolveAttr")
 	}
-	if !info.MergeableAttrs["data"] {
-		t.Errorf("ts_binary should have data as MergeableAttr")
+	if info.MergeableAttrs["data"] {
+		t.Errorf("ts_binary data should not be merged before Resolve")
 	}
 }
 
-func TestKinds_TsconfigTypesMergeable(t *testing.T) {
+func TestKinds_MergeAndResolveAttrsAreDisjoint(t *testing.T) {
+	for kind, info := range tsKinds {
+		for attr := range info.MergeableAttrs {
+			if info.ResolveAttrs[attr] {
+				t.Errorf("%s.%s is both mergeable and resolved", kind, attr)
+			}
+		}
+	}
+
 	for _, kind := range []string{KindTsLibrary, KindTsTest, KindTsVisualLibrary, KindTsBinary, KindBundlerConfig} {
 		info := tsKinds[kind]
 		if !info.ResolveAttrs["tsconfig_types"] {
 			t.Errorf("%s should have tsconfig_types as ResolveAttr", kind)
-		}
-		if !info.MergeableAttrs["tsconfig_types"] {
-			t.Errorf("%s should have tsconfig_types as MergeableAttr", kind)
 		}
 	}
 }
@@ -460,10 +463,8 @@ func TestKinds_HasTsVisualLibrary(t *testing.T) {
 	if !ok {
 		t.Fatalf("tsKinds missing %q", KindTsVisualLibrary)
 	}
-	for _, attr := range []string{"srcs", "deps"} {
-		if !info.MergeableAttrs[attr] {
-			t.Errorf("ts_visual_library should have %s as MergeableAttr", attr)
-		}
+	if !info.MergeableAttrs["srcs"] {
+		t.Error("ts_visual_library should have srcs as MergeableAttr")
 	}
 	if !info.ResolveAttrs["deps"] {
 		t.Errorf("ts_visual_library should have deps as ResolveAttr")

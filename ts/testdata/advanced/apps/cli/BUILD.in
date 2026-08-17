@@ -1,17 +1,22 @@
 load("//tools:ts.bzl", "myorg_ts_binary", "myorg_ts_library")
 
+# gazelle:exclude library.resource.ts
+
 # Hand-written ts_binary — gazelle never generates these, but it does
 # manage the `data` attr based on what entry_point/srcs imports. The user
 # owns name, entry_point, env, etc.; the plugin fills in data deps.
 myorg_ts_binary(
     name = "cli_bin",
     srcs = glob(["*.cli.ts"]),
-    data = ["users.json"],
+    data = [
+        "users.json",  # keep
+    ],
     entry_point = "main.ts",
 )
 
 myorg_ts_binary(
     name = "platform_bin",
+    # keep
     data = select({
         "//conditions:default": ["platform-config.json"],
     }),

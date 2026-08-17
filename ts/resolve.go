@@ -14,7 +14,6 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/repo"
 	"github.com/bazelbuild/bazel-gazelle/resolve"
 	"github.com/bazelbuild/bazel-gazelle/rule"
-	"github.com/bazelbuild/buildtools/build"
 )
 
 // nodeBuiltinModules: imports of these (or `node:<name>`) resolve to
@@ -131,13 +130,10 @@ func (l *tsLang) Resolve(
 		// for both stock js_binary and the abstract ts_binary.
 		resolved := l.resolveImportsToDeps(c, importData.Imports, from, ix, cfg)
 		globalResolved := resolveGlobalsToDeps(importData.Globals, cfg)
-		data, literalData := literalStringList(r.Attr("data"))
-		if r.Attr("data") == nil || literalData {
-			inferred := append([]string{}, resolved.external...)
-			inferred = append(inferred, resolved.internal...)
-			inferred = append(inferred, globalResolved.external...)
-			setBinaryData(r, data, inferred)
-		}
+		data := append([]string{}, resolved.external...)
+		data = append(data, resolved.internal...)
+		data = append(data, globalResolved.external...)
+		setOrDelete(r, "data", data)
 		if kindMatches(c, r.Kind(), KindTsBinary) {
 			tsconfigTypes := append([]string{}, resolved.tsconfigTypes...)
 			tsconfigTypes = append(tsconfigTypes, globalResolved.tsconfigTypes...)
@@ -183,32 +179,6 @@ func setOrDelete(r *rule.Rule, attr string, values []string) {
 	} else {
 		r.DelAttr(attr)
 	}
-}
-
-func setBinaryData(r *rule.Rule, explicit, inferred []string) {
-	explicit = deduplicateAndSort(explicit)
-	explicitSet := make(map[string]bool, len(explicit))
-	for _, value := range explicit {
-		explicitSet[value] = true
-	}
-
-	values := append([]string{}, explicit...)
-	values = append(values, inferred...)
-	values = deduplicateAndSort(values)
-	if len(values) == 0 {
-		r.DelAttr("data")
-		return
-	}
-
-	list := &build.ListExpr{List: make([]build.Expr, 0, len(values))}
-	for _, value := range values {
-		expr := &build.StringExpr{Value: value}
-		if !explicitSet[value] {
-			expr.Comment().Suffix = []build.Comment{{Token: "# " + managedBinaryDataComment}}
-		}
-		list.List = append(list.List, expr)
-	}
-	r.SetAttr("data", list)
 }
 
 func resolveGlobalsToDeps(globals []GlobalReference, cfg *tsConfig) resolvedDeps {

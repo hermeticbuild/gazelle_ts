@@ -6,12 +6,12 @@ load("//tools:ts.bzl", "myorg_ts_binary", "myorg_ts_library")
 myorg_ts_binary(
     name = "cli_bin",
     data = [
-        "users.json",
-        "//:node_modules/@myrepo_generated/synthetic",  # gazelle:managed
-        "//:node_modules/@types/node",  # gazelle:managed
-        "//packages/core",  # gazelle:managed
-        "//packages/utils/math/deep",  # gazelle:managed
-        "//tools:mystery",  # gazelle:managed
+        "users.json",  # keep
+        "//:node_modules/@myrepo_generated/synthetic",
+        "//:node_modules/@types/node",
+        "//packages/core",
+        "//packages/utils/math/deep",
+        "//tools:mystery",
     ],
     entry_point = "main.ts",
     tsconfig_types = ["node"],

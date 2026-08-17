@@ -8,9 +8,8 @@ import (
 // rules with existing BUILD-file content.
 //
 //   - NonEmptyAttrs:  attrs that must be non-empty for the rule to survive merge
-//   - MergeableAttrs: attrs whose values are merged (union); `# keep` lines
-//     in the existing BUILD file are preserved across regenerations
-//   - ResolveAttrs:   attrs that are set by Resolve() and replace existing values
+//   - MergeableAttrs: attrs set during generation and reconciled before indexing
+//   - ResolveAttrs:   dependency attrs set by Resolve() and reconciled afterward
 //
 // Attrs not listed are left untouched if we don't set them, or overwritten if
 // we do. This is how manually-set attrs like tsconfig overrides, transpiler
@@ -61,7 +60,7 @@ var managedBinaryKinds = []string{KindJsBinary, KindTsBinary}
 var tsKinds = map[string]rule.KindInfo{
 	KindTsLibrary: {
 		NonEmptyAttrs:  map[string]bool{"name": true},
-		MergeableAttrs: map[string]bool{"srcs": true, "tsconfig_types": true},
+		MergeableAttrs: map[string]bool{"srcs": true},
 		ResolveAttrs: map[string]bool{
 			"deps":           true,
 			"tsconfig_types": true,
@@ -69,7 +68,7 @@ var tsKinds = map[string]rule.KindInfo{
 	},
 	KindTsTest: {
 		NonEmptyAttrs:  map[string]bool{"name": true},
-		MergeableAttrs: map[string]bool{"srcs": true, "deps": true, "data": true, "tsconfig_types": true},
+		MergeableAttrs: map[string]bool{"srcs": true, "data": true},
 		ResolveAttrs: map[string]bool{
 			"deps":           true,
 			"tsconfig_types": true,
@@ -77,22 +76,20 @@ var tsKinds = map[string]rule.KindInfo{
 	},
 	KindTsVisualLibrary: {
 		NonEmptyAttrs:  map[string]bool{"name": true},
-		MergeableAttrs: map[string]bool{"srcs": true, "deps": true, "tsconfig_types": true},
+		MergeableAttrs: map[string]bool{"srcs": true},
 		ResolveAttrs: map[string]bool{
 			"deps":           true,
 			"tsconfig_types": true,
 		},
 	},
 	KindJsBinary: {
-		NonEmptyAttrs:  map[string]bool{"name": true},
-		MergeableAttrs: map[string]bool{"data": true},
+		NonEmptyAttrs: map[string]bool{"name": true},
 		ResolveAttrs: map[string]bool{
 			"data": true,
 		},
 	},
 	KindTsBinary: {
-		NonEmptyAttrs:  map[string]bool{"name": true},
-		MergeableAttrs: map[string]bool{"data": true, "tsconfig_types": true},
+		NonEmptyAttrs: map[string]bool{"name": true},
 		ResolveAttrs: map[string]bool{
 			"data":           true,
 			"tsconfig_types": true,
@@ -100,7 +97,7 @@ var tsKinds = map[string]rule.KindInfo{
 	},
 	KindBundlerConfig: {
 		NonEmptyAttrs:  map[string]bool{"name": true},
-		MergeableAttrs: map[string]bool{"srcs": true, "tsconfig_types": true},
+		MergeableAttrs: map[string]bool{"srcs": true},
 		ResolveAttrs: map[string]bool{
 			"deps":           true,
 			"tsconfig_types": true,
