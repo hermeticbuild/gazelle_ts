@@ -236,16 +236,28 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	// without creating package-wide cycles between multiple binaries.
 	for _, b := range binaries {
 		libraryName := binaryLibraryName(b.name, libName)
+		libraryFiles := append([]string{}, b.files...)
+		seenFiles := make(map[string]bool, len(libraryFiles))
+		for _, f := range libraryFiles {
+			seenFiles[f] = true
+		}
+		for _, f := range libSrcs {
+			if isDeclarationFile(f) && !seenFiles[f] {
+				libraryFiles = append(libraryFiles, f)
+				seenFiles[f] = true
+			}
+		}
+		sort.Strings(libraryFiles)
 		var imports []ImportStatement
 		var globals []GlobalReference
-		for _, f := range b.files {
+		for _, f := range libraryFiles {
 			refs := allRefs[filepath.Join(args.Dir, f)]
 			imports = append(imports, refs.Imports...)
 			globals = append(globals, refs.Globals...)
 		}
 
 		library := rule.NewRule(KindTsLibrary, libraryName)
-		library.SetAttr("srcs", b.files)
+		library.SetAttr("srcs", libraryFiles)
 		library.SetAttr("tags", []string{binaryLibraryTag})
 		library.SetAttr("visibility", []string{"//visibility:private"})
 		library.SetPrivateAttr(binaryLibraryKey, true)
@@ -376,6 +388,12 @@ func isTypeScriptFile(name string, cfg *tsConfig) bool {
 		}
 	}
 	return false
+}
+
+func isDeclarationFile(name string) bool {
+	return strings.HasSuffix(name, ".d.ts") ||
+		strings.HasSuffix(name, ".d.mts") ||
+		strings.HasSuffix(name, ".d.cts")
 }
 
 // isTestFile matches the file path against any of the configured test

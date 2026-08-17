@@ -45,6 +45,7 @@ myorg_ts_library(
     srcs = [
         "aux.cli.ts",
         "main.ts",
+        "types.d.ts",
     ],
     tags = ["gazelle_ts_binary_library"],
     tsconfig_types = ["node"],
@@ -61,7 +62,10 @@ myorg_ts_library(
 
 myorg_ts_library(
     name = "platform_bin_lib",
-    srcs = ["platform.ts"],
+    srcs = [
+        "platform.ts",
+        "types.d.ts",
+    ],
     tags = ["gazelle_ts_binary_library"],
     tsconfig_types = ["node"],
     visibility = ["//visibility:private"],

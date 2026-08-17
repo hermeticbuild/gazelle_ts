@@ -261,7 +261,8 @@ rules of those kinds. Like Gazelle Go, each binary's sources and imports stay
 on a private generated library while the launcher consumes that library.
 `ts_binary` uses a `deps` edge; stock `js_binary` uses its native `data` edge.
 Private libraries carry the `gazelle_ts_binary_library` tag so mapped library
-macros can skip package-wide side effects.
+macros can skip package-wide side effects. Package ambient declaration files
+are included in each private library without adding a cycle-prone package edge.
 
 Package-local TypeScript files already named by another rule's `entry_point`,
 or `srcs` are omitted from generated library, test, visual-library, and

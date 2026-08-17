@@ -25,6 +25,19 @@ func TestIsTypeScriptFile(t *testing.T) {
 	}
 }
 
+func TestIsDeclarationFile(t *testing.T) {
+	for _, name := range []string{"types.d.ts", "types.d.mts", "types.d.cts"} {
+		if !isDeclarationFile(name) {
+			t.Errorf("isDeclarationFile(%q) = false, want true", name)
+		}
+	}
+	for _, name := range []string{"main.ts", "types.ts", "types.d.tsx"} {
+		if isDeclarationFile(name) {
+			t.Errorf("isDeclarationFile(%q) = true, want false", name)
+		}
+	}
+}
+
 func TestIsTypeScriptFile_CustomExtensions(t *testing.T) {
 	cfg := newTsConfig()
 	cfg.extensions = append(cfg.extensions, ".mts")
