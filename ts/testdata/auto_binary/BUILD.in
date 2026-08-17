@@ -1,0 +1,11 @@
+load("@gazelle_ts//ts:defs.bzl", "ts_binary")
+
+ts_binary(
+    name = "custom",
+    entry_point = "existing.ts",
+)
+
+ts_binary(
+    name = "stale_bin",
+    entry_point = "stale.ts",
+)

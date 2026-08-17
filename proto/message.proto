@@ -34,4 +34,5 @@ message TsImportByFile {
   string file = 1;
   repeated string import_paths = 2;
   repeated string global_names = 3;
+  bool has_main = 4;
 }

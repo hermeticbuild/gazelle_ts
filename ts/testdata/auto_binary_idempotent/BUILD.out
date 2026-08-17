@@ -1,0 +1,13 @@
+load("@gazelle_ts//ts:defs.bzl", "ts_binary", "ts_library")
+
+ts_binary(
+    name = "main_bin",
+    entry_point = "main.ts",
+    env = {"MODE": "test"},
+)
+
+ts_library(
+    name = "lib",
+    srcs = ["main.ts"],
+    visibility = ["//visibility:public"],
+)

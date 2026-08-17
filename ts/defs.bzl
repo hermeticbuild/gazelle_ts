@@ -9,11 +9,9 @@ compile/check targets, or `js_binary` with project-specific defaults baked in
 (transpiler, tsconfig, visibility, project-references compile flags,
 entry_point handling, launcher).
 
-`ts_binary` is the binary-flavored sibling of `ts_library`: hand-written
-by the user (we never generate one), but its `data` attr is auto-managed
-from the rule's `entry_point` / `srcs` imports. Same lifecycle as stock
-`js_binary`, just under the gazelle_ts namespace so consumers can swap
-implementations through map_kind without rewriting their gazelle config.
+`ts_binary` is the binary-flavored sibling of `ts_library`. Gazelle generates
+one for a strict Oxc-detected main entrypoint and also manages hand-written
+binary rules. Consumers swap implementations through map_kind.
 
 The gazelle_ts module deliberately does not take a transitive
 `aspect_rules_ts` or `aspect_rules_js` dependency, so the macros can't
@@ -51,8 +49,8 @@ def ts_test(name, srcs, deps = [], data = [], **_kwargs):
 def ts_visual_library(name, srcs, deps = [], **_kwargs):
     _abstract_kind("ts_visual_library", name, srcs + deps)
 
-def ts_binary(name, data = None, **_kwargs):
-    _abstract_kind("ts_binary", name, data or [])
+def ts_binary(name, entry_point = None, data = None, **_kwargs):
+    _abstract_kind("ts_binary", name, ([entry_point] if entry_point else []) + (data or []))
 
 def ts_bundler_config(name, srcs, **_kwargs):
     _abstract_kind("ts_bundler_config", name, srcs)

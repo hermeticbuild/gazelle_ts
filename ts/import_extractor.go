@@ -32,6 +32,7 @@ import (
 type extractedTSFile struct {
 	ImportPaths []string
 	GlobalNames []string
+	HasMain     bool
 }
 
 // extractImports sends a batch of file paths and returns parsed TypeScript
@@ -56,6 +57,7 @@ func extractImports(files []string) (map[string]extractedTSFile, error) {
 			out[fi.File] = extractedTSFile{
 				ImportPaths: fi.ImportPaths,
 				GlobalNames: fi.GlobalNames,
+				HasMain:     fi.HasMain,
 			}
 		}
 		return out, nil

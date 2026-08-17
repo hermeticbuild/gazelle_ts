@@ -47,6 +47,7 @@ pub fn handle_ts(id: u32, req: pb::TsQueryRequest) -> pb::Response {
                 file: file.clone(),
                 import_paths: refs.imports,
                 global_names: refs.globals,
+                has_main: refs.has_main,
             }),
             Err(e) => {
                 eprintln!("import_extractor: skipping {file}: {e}");
@@ -142,6 +143,29 @@ mod tests {
                 assert_eq!(r.imports.len(), 1);
                 assert_eq!(r.imports[0].import_paths, vec!["mod-a", "mod-b"]);
             }
+            _ => panic!("expected ts_result"),
+        }
+    }
+
+    #[test]
+    fn handle_ts_returns_main_detection() {
+        let dir = std::env::temp_dir().join("import_extractor_wire_test_main");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("main.ts");
+        std::fs::write(
+            &path,
+            "function main(args: string[]) {}\nmain(process.argv.slice(2));",
+        )
+        .unwrap();
+
+        let resp = handle_ts(
+            6,
+            pb::TsQueryRequest {
+                files: vec![path.to_string_lossy().into_owned()],
+            },
+        );
+        match resp.data {
+            Some(pb::response::Data::TsResult(r)) => assert!(r.imports[0].has_main),
             _ => panic!("expected ts_result"),
         }
     }

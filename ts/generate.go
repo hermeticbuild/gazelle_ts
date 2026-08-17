@@ -62,22 +62,28 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		}
 	}
 
-	// Hand-written binary rules in this BUILD whose `data` we manage. We
-	// never generate them — we piggyback on the user's existing rule,
-	// scan its entry_point/srcs for imports, and let Resolve set data.
-	// Both stock js_binary and the abstract ts_binary go through here.
+	// Discover hand-written binaries whose deps we manage. Oxc-detected main
+	// entrypoints are added after extraction unless an existing binary already
+	// claims the source.
 	type binaryRef struct {
-		kind  string
-		name  string
-		files []string // package-relative TS files referenced by the rule
+		kind       string
+		name       string
+		files      []string // package-relative TS files referenced by the rule
+		entryPoint string
+		srcs       []string
 	}
 	var binaries []binaryRef
+	var emptyRules []*rule.Rule
+	binaryFiles := map[string]bool{}
+	existingNames := map[string]bool{}
+	reservedBinaries := map[string]string{}
 	if args.File != nil {
 		seen := make(map[string]bool, len(tsFiles))
 		for _, f := range tsFiles {
 			seen[f] = true
 		}
 		for _, r := range args.File.Rules {
+			existingNames[r.Name()] = true
 			canonical := ""
 			for _, k := range managedBinaryKinds {
 				if kindMatches(args.Config, r.Kind(), k) {
@@ -88,7 +94,12 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			if canonical == "" {
 				continue
 			}
-			ref := binaryRef{kind: canonical, name: r.Name()}
+			ref := binaryRef{
+				kind:       canonical,
+				name:       r.Name(),
+				entryPoint: r.AttrString("entry_point"),
+				srcs:       r.AttrStrings("srcs"),
+			}
 			candidates := append([]string{r.AttrString("entry_point")}, r.AttrStrings("srcs")...)
 			for _, c := range candidates {
 				if c == "" || !isTypeScriptFile(c, cfg) {
@@ -102,6 +113,17 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 				}
 			}
 			if len(ref.files) > 0 {
+				if canonical == KindTsBinary && len(ref.files) == 1 &&
+					r.Name() == binaryNameForSource(ref.files[0], cfg) {
+					// This name is reserved for generated main entrypoints. Re-detect
+					// it so removing or changing main removes the stale binary rule.
+					delete(existingNames, r.Name())
+					reservedBinaries[filepath.ToSlash(ref.files[0])] = r.Name()
+					continue
+				}
+				for _, file := range ref.files {
+					binaryFiles[filepath.ToSlash(file)] = true
+				}
 				binaries = append(binaries, ref)
 			}
 		}
@@ -143,9 +165,36 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			}
 		}
 	}
+	detectedBinaries := map[string]bool{}
+	for _, source := range libSrcs {
+		if binaryFiles[filepath.ToSlash(source)] || !allRefs[filepath.Join(args.Dir, source)].HasMain {
+			continue
+		}
+		name := binaryNameForSource(source, cfg)
+		if existingNames[name] {
+			continue
+		}
+		binaries = append(binaries, binaryRef{
+			kind:       KindTsBinary,
+			name:       name,
+			files:      []string{source},
+			entryPoint: source,
+		})
+		detectedBinaries[filepath.ToSlash(source)] = true
+	}
+	var staleBinaryNames []string
+	for source, name := range reservedBinaries {
+		if !detectedBinaries[source] {
+			staleBinaryNames = append(staleBinaryNames, name)
+		}
+	}
+	sort.Strings(staleBinaryNames)
+	for _, name := range staleBinaryNames {
+		emptyRules = append(emptyRules, rule.NewRule(KindTsBinary, name))
+	}
 
 	if len(libSrcs) == 0 && len(testSrcs) == 0 && len(visualLibrarySrcs) == 0 && len(binaries) == 0 && len(parts.bundlerConfigs) == 0 {
-		return language.GenerateResult{}
+		return language.GenerateResult{Empty: emptyRules}
 	}
 
 	var genRules []*rule.Rule
@@ -208,10 +257,8 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		})
 	}
 
-	// Existing binary rules (js_binary, ts_binary) — emit a placeholder so
-	// Resolve runs against each, but don't set any attrs. The merge engine
-	// keeps the user's entry_point, srcs, env, etc.; Resolve fills in
-	// `data` from the entry_point/srcs imports.
+	// Existing binaries get placeholders so Resolve can update their deps.
+	// Oxc-detected main entrypoints get generated ts_binary rules.
 	for _, b := range binaries {
 		var imps []ImportStatement
 		var globals []GlobalReference
@@ -220,7 +267,14 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			imps = append(imps, refs.Imports...)
 			globals = append(globals, refs.Globals...)
 		}
-		genRules = append(genRules, rule.NewRule(b.kind, b.name))
+		r := rule.NewRule(b.kind, b.name)
+		if b.entryPoint != "" {
+			r.SetAttr("entry_point", b.entryPoint)
+		}
+		if len(b.srcs) > 0 {
+			r.SetAttr("srcs", b.srcs)
+		}
+		genRules = append(genRules, r)
 		genImports = append(genImports, ImportData{
 			Imports: imps,
 			Globals: globals,
@@ -272,8 +326,18 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 
 	return language.GenerateResult{
 		Gen:     genRules,
+		Empty:   emptyRules,
 		Imports: genImports,
 	}
+}
+
+func binaryNameForSource(source string, cfg *tsConfig) string {
+	name := filepath.ToSlash(source)
+	for _, extension := range sortedUniqueExtensions(cfg.extensions) {
+		name = strings.TrimSuffix(name, extension)
+	}
+	name = strings.NewReplacer("/", "_", ".", "_").Replace(name)
+	return name + "_bin"
 }
 
 // resolveRuleNames returns the (library, test, visual library) rule names for

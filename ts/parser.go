@@ -18,6 +18,7 @@ type GlobalReference struct {
 type ExtractedReferences struct {
 	Imports []ImportStatement
 	Globals []GlobalReference
+	HasMain bool
 }
 
 // extractImportsBatch sends a batch of file paths through the cgo FFI and
@@ -34,6 +35,7 @@ func (l *tsLang) extractImportsBatch(filePaths []string) (map[string]ExtractedRe
 		fileRefs := ExtractedReferences{
 			Imports: make([]ImportStatement, 0, len(extracted.ImportPaths)),
 			Globals: make([]GlobalReference, 0, len(extracted.GlobalNames)),
+			HasMain: extracted.HasMain,
 		}
 		for _, p := range extracted.ImportPaths {
 			fileRefs.Imports = append(fileRefs.Imports, ImportStatement{
