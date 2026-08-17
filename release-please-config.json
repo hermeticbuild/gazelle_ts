@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "b1b157a741f138545acb6dc6865991f1a8f0ab30",
+  "release-type": "simple",
+  "include-component-in-tag": false,
+  "changelog-type": "github",
+  "packages": {
+    ".": {
+      "package-name": "gazelle_ts"
+    }
+  }
+}
