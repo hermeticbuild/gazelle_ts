@@ -67,3 +67,20 @@ func TestImportsIndexesCurrentPackageSourceLabels(t *testing.T) {
 		t.Errorf("Imports() = %v, want %v", got, want)
 	}
 }
+
+func TestImportsBinaryLibraryOnlyIndexesSources(t *testing.T) {
+	c := config.New()
+	c.Exts[languageName] = &tsConfig{extensions: []string{".ts"}}
+	r := rule.NewRule(KindTsLibrary, "cli_bin_lib")
+	r.SetAttr("srcs", []string{"main.ts"})
+	r.SetPrivateAttr(binaryLibraryKey, true)
+	f := &rule.File{Pkg: "apps/cli"}
+
+	got := (&tsLang{}).Imports(c, r, f)
+	want := []resolve.ImportSpec{
+		{Lang: languageName, Imp: "apps/cli/main"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Imports() = %v, want %v", got, want)
+	}
+}

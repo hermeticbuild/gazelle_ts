@@ -9,9 +9,9 @@ compile/check targets, or `js_binary` with project-specific defaults baked in
 (transpiler, tsconfig, visibility, project-references compile flags,
 entry_point handling, launcher).
 
-`ts_binary` is a hand-written launcher attached to the generated package
-library through `deps`. Its wrapper adapts that edge to the concrete runtime
-rule while keeping `data` available for user-owned runtime files.
+`ts_binary` is a hand-written launcher attached to a private generated library
+through `deps`. Its wrapper adapts that edge to the concrete runtime rule while
+keeping `data` available for user-owned runtime files.
 
 The gazelle_ts module deliberately does not take a transitive
 `aspect_rules_ts` or `aspect_rules_js` dependency, so the macros can't

@@ -2,13 +2,13 @@ load("//tools:ts.bzl", "myorg_ts_binary", "myorg_ts_library")
 
 # gazelle:exclude library.resource.ts
 
-# Hand-written launcher. Gazelle attaches the generated package library.
+# Hand-written launcher. Gazelle attaches a generated private library.
 myorg_ts_binary(
     name = "cli_bin",
     srcs = glob(["*.cli.ts"]),
     data = ["users.json"],
     entry_point = "main.ts",
-    deps = [":cli"],
+    deps = [":cli_bin_lib"],
 )
 
 myorg_ts_binary(
@@ -17,7 +17,7 @@ myorg_ts_binary(
         "//conditions:default": ["platform-config.json"],
     }),
     entry_point = "platform.ts",
-    deps = [":cli"],
+    deps = [":platform_bin_lib"],
 )
 
 filegroup(
@@ -31,17 +31,24 @@ filegroup(
 myorg_ts_library(
     name = "cli",
     srcs = [
-        "aux.cli.ts",
         "excluded.template.ts",
-        "main.ts",
-        "platform.ts",
         "types.d.ts",
     ],
     data = select({
         "//conditions:default": ["library.resource.ts"],
     }),
-    tsconfig_types = ["node"],
     visibility = ["//visibility:public"],
+)
+
+myorg_ts_library(
+    name = "cli_bin_lib",
+    srcs = [
+        "aux.cli.ts",
+        "main.ts",
+    ],
+    tags = ["gazelle_ts_binary_library"],
+    tsconfig_types = ["node"],
+    visibility = ["//visibility:private"],
     deps = [
         "//:node_modules/@myrepo_generated/synthetic",
         "//:node_modules/@tanstack/react-query",
@@ -50,4 +57,13 @@ myorg_ts_library(
         "//packages/utils/math/deep",
         "//tools:mystery",
     ],
+)
+
+myorg_ts_library(
+    name = "platform_bin_lib",
+    srcs = ["platform.ts"],
+    tags = ["gazelle_ts_binary_library"],
+    tsconfig_types = ["node"],
+    visibility = ["//visibility:private"],
+    deps = ["//:node_modules/@types/node"],
 )

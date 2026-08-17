@@ -22,6 +22,8 @@ import (
 // `#packages/foo/bar.js` → //packages/foo and `packages/foo` → //packages/foo.
 // Source-level specs let hand-written split targets own files within the same
 // package without falling back to a package aggregate.
+// Binary-private libraries publish only source-level specs so they don't
+// compete with the package library for broad package imports.
 //
 // Test rules don't export reusable modules, so they don't appear in the index.
 func (l *tsLang) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resolve.ImportSpec {
@@ -30,9 +32,12 @@ func (l *tsLang) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resolve
 	}
 
 	pkg := f.Pkg
-	specs := []resolve.ImportSpec{
-		{Lang: languageName, Imp: pkg},
-		{Lang: languageName, Imp: pkg + "/*"},
+	var specs []resolve.ImportSpec
+	if private, _ := r.PrivateAttr(binaryLibraryKey).(bool); !private {
+		specs = append(specs,
+			resolve.ImportSpec{Lang: languageName, Imp: pkg},
+			resolve.ImportSpec{Lang: languageName, Imp: pkg + "/*"},
+		)
 	}
 	specs = append(specs, importSpecsForLiteralSrcs(c, pkg, r.AttrStrings("srcs"))...)
 	return specs

@@ -2,7 +2,7 @@ load("//tools:ts.bzl", "myorg_ts_binary", "myorg_ts_library")
 
 # gazelle:exclude library.resource.ts
 
-# Hand-written launcher. Gazelle attaches the generated package library.
+# Hand-written launcher. Gazelle attaches a generated private library.
 myorg_ts_binary(
     name = "cli_bin",
     srcs = glob(["*.cli.ts"]),

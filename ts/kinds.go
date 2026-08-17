@@ -35,10 +35,10 @@ import (
 // `*.story.tsx` and `*.visual.tsx` files, with visual-only imports in its
 // own `deps` so they don't leak into the library target.
 //
-// `ts_binary` and `js_binary` are hand-written launchers. Package sources and
-// imports stay on the generated `ts_library`, following Gazelle Go's library
-// plus binary shape. An abstract `ts_binary` consumes the library through
-// `deps`; stock `js_binary` uses its native runtime `data` edge.
+// `ts_binary` and `js_binary` are hand-written launchers. Their sources and
+// imports stay on a private generated `ts_library`, following Gazelle Go's
+// library plus binary shape. An abstract `ts_binary` consumes the library
+// through `deps`; stock `js_binary` uses its native runtime `data` edge.
 const (
 	KindJsBinary = "js_binary"
 	KindTsBinary = "ts_binary"
@@ -50,8 +50,8 @@ const (
 // kind: consumers map_kind it to a real macro.
 const KindBundlerConfig = "ts_bundler_config"
 
-// managedBinaryKinds enumerates hand-written launchers attached to the
-// generated package library.
+// managedBinaryKinds enumerates hand-written launchers backed by private
+// generated libraries.
 var managedBinaryKinds = []string{KindJsBinary, KindTsBinary}
 
 var tsKinds = map[string]rule.KindInfo{

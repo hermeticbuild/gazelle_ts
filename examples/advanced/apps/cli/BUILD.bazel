@@ -1,11 +1,11 @@
 load("//tools:ts.bzl", "myorg_ts_binary", "myorg_ts_library")
 
-# Hand-written launcher. Gazelle attaches the generated package library.
+# Hand-written launcher. Gazelle attaches a generated private library.
 myorg_ts_binary(
     name = "cli_bin",
     data = ["users.json"],
     entry_point = "main.ts",
-    deps = [":cli"],
+    deps = [":cli_bin_lib"],
 )
 
 filegroup(
@@ -15,12 +15,16 @@ filegroup(
 
 myorg_ts_library(
     name = "cli",
-    srcs = [
-        "main.ts",
-        "types.d.ts",
-    ],
-    tsconfig_types = ["node"],
+    srcs = ["types.d.ts"],
     visibility = ["//visibility:public"],
+)
+
+myorg_ts_library(
+    name = "cli_bin_lib",
+    srcs = ["main.ts"],
+    tags = ["gazelle_ts_binary_library"],
+    tsconfig_types = ["node"],
+    visibility = ["//visibility:private"],
     deps = [
         "//:node_modules/@myrepo_generated/synthetic",
         "//:node_modules/@types/node",

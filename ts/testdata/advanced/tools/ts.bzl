@@ -46,7 +46,7 @@ def myorg_ts_library(name, srcs, tsconfig_types = None, **kwargs):
     )
 
 def myorg_ts_binary(name, deps = [], data = [], **kwargs):
-    """Thin launcher over the generated package library."""
+    """Thin launcher over a generated private library."""
     _js_binary(name = name, data = deps + data, **kwargs)
 
 def myorg_ts_visual_library(name, srcs, deps = [], tsconfig_types = None, **kwargs):
