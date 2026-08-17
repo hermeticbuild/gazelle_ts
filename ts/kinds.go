@@ -88,8 +88,8 @@ var tsKinds = map[string]rule.KindInfo{
 		},
 	},
 	KindTsBinary: {
-		NonEmptyAttrs:  map[string]bool{"entry_point": true, "srcs": true, "data": true},
-		MergeableAttrs: map[string]bool{"entry_point": true, "srcs": true, "data": true, "tsconfig_types": true},
+		NonEmptyAttrs:  map[string]bool{"entry_point": true, "srcs": true, "deps": true, "data": true},
+		MergeableAttrs: map[string]bool{"entry_point": true, "srcs": true, "deps": true, "data": true, "tsconfig_types": true},
 		ResolveAttrs: map[string]bool{
 			"data":           true,
 			"tsconfig_types": true,

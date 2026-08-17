@@ -20,7 +20,6 @@ ts_library(
 
 ts_binary(
     name = "main_bin",
-    data = ["//:node_modules/@types/node"],
     entry_point = "main.ts",
-    tsconfig_types = ["node"],
+    deps = [":lib"],
 )

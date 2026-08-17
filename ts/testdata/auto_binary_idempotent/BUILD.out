@@ -4,6 +4,7 @@ ts_binary(
     name = "main_bin",
     entry_point = "main.ts",
     env = {"MODE": "test"},
+    deps = [":lib"],
 )
 
 ts_library(

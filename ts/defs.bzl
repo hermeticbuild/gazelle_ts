@@ -49,8 +49,8 @@ def ts_test(name, srcs, deps = [], data = [], **_kwargs):
 def ts_visual_library(name, srcs, deps = [], **_kwargs):
     _abstract_kind("ts_visual_library", name, srcs + deps)
 
-def ts_binary(name, entry_point = None, data = None, **_kwargs):
-    _abstract_kind("ts_binary", name, ([entry_point] if entry_point else []) + (data or []))
+def ts_binary(name, entry_point = None, deps = None, data = None, **_kwargs):
+    _abstract_kind("ts_binary", name, ([entry_point] if entry_point else []) + (deps or []) + (data or []))
 
 def ts_bundler_config(name, srcs, **_kwargs):
     _abstract_kind("ts_bundler_config", name, srcs)
