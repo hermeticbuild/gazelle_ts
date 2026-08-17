@@ -23,7 +23,7 @@ load("@npm//:vitest/package_json.bzl", _vitest_bin = "bin")
 
 def _has_implementation_source(srcs):
     for src in srcs:
-        if not src.endswith(".d.ts"):
+        if not (src.endswith(".d.ts") or src.endswith(".d.mts") or src.endswith(".d.cts")):
             return True
     return False
 

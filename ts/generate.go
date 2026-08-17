@@ -577,9 +577,24 @@ func literalStringList(expr build.Expr) ([]string, bool) {
 		if !ok {
 			return nil, false
 		}
+		if isManagedBinaryData(value) {
+			continue
+		}
 		values = append(values, value.Value)
 	}
 	return values, true
+}
+
+const managedBinaryDataComment = "gazelle:managed"
+
+func isManagedBinaryData(expr build.Expr) bool {
+	comments := append(expr.Comment().Before, expr.Comment().Suffix...)
+	for _, comment := range comments {
+		if strings.TrimSpace(strings.TrimPrefix(comment.Token, "#")) == managedBinaryDataComment {
+			return true
+		}
+	}
+	return false
 }
 
 func matchesSourceGlob(source string, patterns []string, excludes []string) bool {

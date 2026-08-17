@@ -8,12 +8,12 @@ myorg_ts_binary(
     srcs = glob(["*.cli.ts"]),
     data = [
         "users.json",
-        "//:node_modules/@myrepo_generated/synthetic",
-        "//:node_modules/@tanstack/react-query",
-        "//:node_modules/@types/node",
-        "//packages/core",
-        "//packages/utils/math/deep",
-        "//tools:mystery",
+        "//:node_modules/@myrepo_generated/synthetic",  # gazelle:managed
+        "//:node_modules/@tanstack/react-query",  # gazelle:managed
+        "//:node_modules/@types/node",  # gazelle:managed
+        "//packages/core",  # gazelle:managed
+        "//packages/utils/math/deep",  # gazelle:managed
+        "//tools:mystery",  # gazelle:managed
     ],
     entry_point = "main.ts",
     tsconfig_types = ["node"],

@@ -112,7 +112,7 @@ load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_test")
 
 def _has_implementation_source(srcs):
     for src in srcs:
-        if not src.endswith(".d.ts"):
+        if not (src.endswith(".d.ts") or src.endswith(".d.mts") or src.endswith(".d.cts")):
             return True
     return False
 

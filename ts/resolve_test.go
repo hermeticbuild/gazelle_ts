@@ -12,6 +12,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/repo"
 	gazelleresolve "github.com/bazelbuild/bazel-gazelle/resolve"
 	"github.com/bazelbuild/bazel-gazelle/rule"
+	"github.com/bazelbuild/buildtools/build"
 )
 
 func TestMatchNpmPackage_Bare(t *testing.T) {
@@ -569,6 +570,32 @@ func TestResolve_MappedTsBinaryPopulatesTsconfigTypes(t *testing.T) {
 	}
 	if got, want := r.AttrStrings("data"), []string{"//:node_modules/@types/node", "runtime.json"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("data = %v, want %v", got, want)
+	}
+	list := r.Attr("data").(*build.ListExpr)
+	if !isManagedBinaryData(list.List[0]) {
+		t.Error("inferred data dependency is not marked as managed")
+	}
+	if isManagedBinaryData(list.List[1]) {
+		t.Error("explicit runtime data is marked as managed")
+	}
+	file := rule.EmptyFile("BUILD.bazel", "apps/cli")
+	r.Insert(file)
+	parsed, err := rule.LoadData("BUILD.bazel", "apps/cli", file.Format())
+	if err != nil {
+		t.Fatal(err)
+	}
+	r = parsed.Rules[0]
+
+	lang.Resolve(
+		c,
+		nil,
+		nil,
+		r,
+		ImportData{},
+		label.Label{Pkg: "apps/cli", Name: "cli"},
+	)
+	if got, want := r.AttrStrings("data"), []string{"runtime.json"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("data after import removal = %v, want %v", got, want)
 	}
 }
 
