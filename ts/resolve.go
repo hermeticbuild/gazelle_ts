@@ -124,10 +124,9 @@ func (l *tsLang) Resolve(
 		setOrDelete(r, "tsconfig_types", tsconfigTypes)
 
 	case kindMatches(c, r.Kind(), KindJsBinary), kindMatches(c, r.Kind(), KindTsBinary):
-		// We don't generate binary rules — only fill in their `data` attr
-		// based on what their entry_point/srcs import. The user's existing
-		// entry_point, env, fixed_args, etc. are left alone. Same shape
-		// for both stock js_binary and the abstract ts_binary.
+		// Hand-written binaries get direct runtime deps from their
+		// entry_point/srcs imports. Generated ts_binary rules carry no imports
+		// here because their sibling library owns that closure.
 		resolved := l.resolveImportsToDeps(c, importData.Imports, from, ix, cfg)
 		globalResolved := resolveGlobalsToDeps(importData.Globals, cfg)
 		all := append([]string{}, resolved.external...)

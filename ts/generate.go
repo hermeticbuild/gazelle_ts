@@ -68,9 +68,10 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	type binaryRef struct {
 		kind       string
 		name       string
-		files      []string // package-relative TS files referenced by the rule
+		files      []string // package-relative TS files whose imports need direct resolution
 		entryPoint string
 		srcs       []string
+		deps       []string
 	}
 	var binaries []binaryRef
 	var emptyRules []*rule.Rule
@@ -177,8 +178,8 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		binaries = append(binaries, binaryRef{
 			kind:       KindTsBinary,
 			name:       name,
-			files:      []string{source},
 			entryPoint: source,
+			deps:       []string{":" + libName},
 		})
 		detectedBinaries[filepath.ToSlash(source)] = true
 	}
@@ -258,7 +259,9 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	}
 
 	// Existing binaries get placeholders so Resolve can update their deps.
-	// Oxc-detected main entrypoints get generated ts_binary rules.
+	// Generated binaries depend on the sibling library, which owns their source
+	// and import closure, following the library-embedded-by-binary shape used by
+	// Gazelle's Go extension.
 	for _, b := range binaries {
 		var imps []ImportStatement
 		var globals []GlobalReference
@@ -273,6 +276,9 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		}
 		if len(b.srcs) > 0 {
 			r.SetAttr("srcs", b.srcs)
+		}
+		if len(b.deps) > 0 {
+			r.SetAttr("deps", b.deps)
 		}
 		genRules = append(genRules, r)
 		genImports = append(genImports, ImportData{
