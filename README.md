@@ -246,11 +246,14 @@ or another tool:
 # gazelle:exclude vitest.storybook.config.ts
 ```
 
-### 8. Keep Hand-Written Binaries Managed
+### 8. Detect Main Entrypoints
 
-Gazelle never generates `ts_binary` or `js_binary`, but it recognizes existing
-rules of those kinds, scans their `entry_point` and `srcs` imports, and keeps
-`data` in sync. For `ts_binary`, it also manages `tsconfig_types`.
+Oxc detects a binary entrypoint when a file declares a top-level
+`main(args)` or `main(argv)` function and calls it at top level. Gazelle emits
+`ts_binary` named `<file>_bin`. These file-derived names are reserved for
+generated entrypoints so stale rules disappear when `main` changes. An existing
+`ts_binary` or `js_binary` claiming that file wins. Gazelle scans generated and
+hand-written binary entrypoints and keeps `data` dependencies in sync.
 
 ## Supported Directives
 
@@ -290,7 +293,7 @@ Useful Gazelle directives alongside `gazelle_ts`:
 | `ts_test` | yes | `srcs`, `deps`, `data`, `tsconfig_types` | A wrapper over vitest, jest, mocha, `js_test`, or another runner. No `entry_point` is emitted. |
 | `ts_visual_library` | yes, for `*.story.tsx` and `*.visual.tsx` by default | `srcs`, `visibility`, `deps`, `tsconfig_types` | A wrapper over `ts_project` or another visual-library typecheck rule. |
 | `ts_bundler_config` | yes, from `ts_bundler_config_pattern` | `srcs`, `visibility`, `deps`, `tsconfig_types` | A wrapper over `ts_project` or equivalent tooling-config typecheck rule. |
-| `ts_binary` | no | `data`, `tsconfig_types` | A hand-written binary rule mapped through `map_kind`. Gazelle scans `entry_point` / `srcs`. |
+| `ts_binary` | yes, for detected main entrypoints | `data`, `tsconfig_types`; `entry_point` on generated rules | A binary rule mapped through `map_kind`. Existing hand-written rules remain supported. |
 | `js_binary` | no | `data` | A hand-written stock rules_js binary. Gazelle scans `entry_point` / `srcs`. |
 
 The plugin does not take a transitive dependency on `aspect_rules_ts` or
@@ -451,7 +454,7 @@ runs.
 
 | Attr | Kind | Behavior |
 |---|---|---|
-| `entry_point` / `srcs` | both | Hand-written by the user; Gazelle scans these files. |
+| `entry_point` / `srcs` | both | Generated from a detected main entrypoint or hand-written by the user; Gazelle scans these files. |
 | `data` | both | Replaced with resolved deps from imports. |
 | `tsconfig_types` | `ts_binary` only | Inferred ambient type names. |
 
@@ -477,7 +480,7 @@ Gazelle calls the language in three main phases:
    and apply BUILD-file directives for the current directory. At the repo root,
    package.json dependencies and imports are loaded.
 2. **GenerateRules** ([ts/generate.go](ts/generate.go)): partition files into
-   library, test, visual-library, bundler-config, and hand-written binary
+   library, test, visual-library, bundler-config, and binary
    inputs; call the Rust extractor; and emit generated rules with attached
    import data.
 3. **Imports / Resolve** ([ts/imports.go](ts/imports.go),

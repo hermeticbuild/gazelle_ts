@@ -36,12 +36,10 @@ import (
 // `*.story.tsx` and `*.visual.tsx` files, with visual-only imports in its
 // own `deps` so they don't leak into the library target.
 //
-// `ts_binary` and `js_binary` are both hand-written by the user — we never
-// generate them. The plugin scans the rule's `entry_point`/`srcs` imports
-// and fills in `data`, leaving everything else (env, fixed_args, launcher)
-// to the user. `ts_binary` is the abstract sibling of `ts_library` for
-// consumers who'd rather map_kind a single TS-flavored kind than reach for
-// stock `js_binary`.
+// `ts_binary` is generated for Oxc-detected main entrypoints. Hand-written
+// `ts_binary` and `js_binary` rules are also supported: the plugin scans their
+// `entry_point`/`srcs` imports and fills in `data`, leaving user-owned attrs
+// such as env and fixed_args alone.
 const (
 	KindJsBinary = "js_binary"
 	KindTsBinary = "ts_binary"
@@ -53,9 +51,8 @@ const (
 // kind: consumers map_kind it to a real macro.
 const KindBundlerConfig = "ts_bundler_config"
 
-// managedBinaryKinds enumerates rule kinds where we discover a hand-written
-// rule, scan its entry_point/srcs for imports, and fill in `data`. Add a
-// new kind here when introducing another binary-shaped abstract.
+// managedBinaryKinds enumerates rule kinds where hand-written rules get their
+// entry_point/srcs imports resolved into `data`.
 var managedBinaryKinds = []string{KindJsBinary, KindTsBinary}
 
 var tsKinds = map[string]rule.KindInfo{
@@ -91,8 +88,8 @@ var tsKinds = map[string]rule.KindInfo{
 		},
 	},
 	KindTsBinary: {
-		NonEmptyAttrs:  map[string]bool{"name": true},
-		MergeableAttrs: map[string]bool{"data": true, "tsconfig_types": true},
+		NonEmptyAttrs:  map[string]bool{"entry_point": true, "srcs": true, "data": true},
+		MergeableAttrs: map[string]bool{"entry_point": true, "srcs": true, "data": true, "tsconfig_types": true},
 		ResolveAttrs: map[string]bool{
 			"data":           true,
 			"tsconfig_types": true,

@@ -1,0 +1,26 @@
+load("@gazelle_ts//ts:defs.bzl", "ts_binary", "ts_library")
+
+ts_binary(
+    name = "custom",
+    entry_point = "existing.ts",
+)
+
+ts_library(
+    name = "lib",
+    srcs = [
+        "existing.ts",
+        "helper.ts",
+        "main.ts",
+        "stale.ts",
+    ],
+    tsconfig_types = ["node"],
+    visibility = ["//visibility:public"],
+    deps = ["//:node_modules/@types/node"],
+)
+
+ts_binary(
+    name = "main_bin",
+    data = ["//:node_modules/@types/node"],
+    entry_point = "main.ts",
+    tsconfig_types = ["node"],
+)

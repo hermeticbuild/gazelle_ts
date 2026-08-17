@@ -33,6 +33,7 @@ pub fn extract_imports_from_file(path: &str) -> Result<Vec<String>, String> {
 pub struct ExtractedReferences {
     pub imports: Vec<String>,
     pub globals: Vec<String>,
+    pub has_main: bool,
 }
 
 pub fn extract_references_from_file(path: &str) -> Result<ExtractedReferences, String> {
@@ -63,10 +64,63 @@ pub fn extract_references(path: &str, source_text: &str) -> ExtractedReferences 
     let ret = Parser::new(&allocator, source_text, source_type).parse();
 
     let semantic = SemanticBuilder::new().build(&ret.program).semantic;
+    let has_main = has_main_entrypoint(&ret.program);
 
     let mut visitor = ImportVisitor::new(semantic.scoping());
     visitor.visit_program(&ret.program);
-    visitor.into_references()
+    visitor.into_references(has_main)
+}
+
+fn has_main_entrypoint(program: &Program<'_>) -> bool {
+    let has_declaration = program.body.iter().any(|statement| {
+        let Some(function) = top_level_function(statement) else {
+            return false;
+        };
+        let Some(id) = &function.id else {
+            return false;
+        };
+        if id.name.as_str() != "main" {
+            return false;
+        }
+        function.params.items.first().is_some_and(|parameter| {
+            matches!(
+                &parameter.pattern,
+                BindingPattern::BindingIdentifier(identifier)
+                    if matches!(identifier.name.as_str(), "args" | "argv")
+            )
+        }) || function.params.rest.as_ref().is_some_and(|parameter| {
+            matches!(
+                &parameter.rest.argument,
+                BindingPattern::BindingIdentifier(identifier)
+                    if matches!(identifier.name.as_str(), "args" | "argv")
+            )
+        })
+    });
+    let has_call = program.body.iter().any(|statement| {
+        let Statement::ExpressionStatement(statement) = statement else {
+            return false;
+        };
+        let Expression::CallExpression(call) = &statement.expression else {
+            return false;
+        };
+        matches!(&call.callee, Expression::Identifier(identifier) if identifier.name.as_str() == "main")
+    });
+    has_declaration && has_call
+}
+
+fn top_level_function<'a>(statement: &'a Statement<'a>) -> Option<&'a Function<'a>> {
+    match statement {
+        Statement::FunctionDeclaration(function) => Some(function),
+        Statement::ExportNamedDeclaration(export) => match &export.declaration {
+            Some(Declaration::FunctionDeclaration(function)) => Some(function),
+            _ => None,
+        },
+        Statement::ExportDefaultDeclaration(export) => match &export.declaration {
+            ExportDefaultDeclarationKind::FunctionDeclaration(function) => Some(function),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 /// AST visitor that collects import paths and global references from TypeScript source code.
@@ -163,10 +217,11 @@ impl<'s> ImportVisitor<'s> {
         self.add(lit.value.as_str());
     }
 
-    fn into_references(self) -> ExtractedReferences {
+    fn into_references(self, has_main: bool) -> ExtractedReferences {
         ExtractedReferences {
             imports: self.imports,
             globals: self.globals,
+            has_main,
         }
     }
 }
@@ -850,5 +905,44 @@ mod tests {
         );
         assert!(imports.contains(&"static".to_string()));
         assert!(imports.contains(&"dynamic".to_string()));
+    }
+
+    #[test]
+    fn detects_called_main_with_args() {
+        let refs = extract_references(
+            "main.ts",
+            "function main(args: string[]) {}\nmain(process.argv.slice(2));",
+        );
+        assert!(refs.has_main);
+    }
+
+    #[test]
+    fn detects_called_main_with_rest_argv() {
+        let refs = extract_references("main.ts", "function main(...argv: string[]) {}\nmain();");
+        assert!(refs.has_main);
+    }
+
+    #[test]
+    fn detects_exported_main() {
+        let refs = extract_references(
+            "main.ts",
+            "export function main(args: string[]) {}\nmain([]);",
+        );
+        assert!(refs.has_main);
+    }
+
+    #[test]
+    fn ignores_uncalled_or_argumentless_main() {
+        assert!(!extract_references("lib.ts", "function main(args: string[]) {}").has_main);
+        assert!(!extract_references("lib.ts", "function main() {}\nmain();").has_main);
+    }
+
+    #[test]
+    fn ignores_nested_main() {
+        let refs = extract_references(
+            "lib.ts",
+            "function wrapper() { function main(args: string[]) {}; main([]); }",
+        );
+        assert!(!refs.has_main);
     }
 }

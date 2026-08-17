@@ -316,6 +316,22 @@ func TestManagedBinaryKinds_IncludesBoth(t *testing.T) {
 	}
 }
 
+func TestBinaryNameForSource(t *testing.T) {
+	cfg := newTsConfig()
+	for _, tc := range []struct {
+		source string
+		want   string
+	}{
+		{source: "main.ts", want: "main_bin"},
+		{source: "worker.ts", want: "worker_bin"},
+		{source: "nested/worker.tsx", want: "nested_worker_bin"},
+	} {
+		if got := binaryNameForSource(tc.source, cfg); got != tc.want {
+			t.Errorf("binaryNameForSource(%q) = %q, want %q", tc.source, got, tc.want)
+		}
+	}
+}
+
 func TestKinds_HasTsBinary(t *testing.T) {
 	// Without a KindInfo entry the merge engine treats ts_binary rules as
 	// unmanaged: data wouldn't be a ResolveAttr and wouldn't be replaced.

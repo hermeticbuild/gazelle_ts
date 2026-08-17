@@ -1,0 +1,1 @@
+module(name = "auto_binary_idempotent")
