@@ -134,11 +134,30 @@ func (l *tsLang) Resolve(
 		setOrDelete(r, "data", all)
 
 	case kindMatches(c, r.Kind(), KindTsBinary):
-		// The sibling library owns and emits the source and import closure. Keep
-		// data empty except for explicit # keep runtime files.
 		resolved := l.resolveImportsToDeps(c, importData.Imports, from, ix, cfg)
 		globalResolved := resolveGlobalsToDeps(importData.Globals, cfg)
-		setOrDelete(r, "data", nil)
+		if importData.BinaryUsesLibrary {
+			// The sibling library owns and emits the source and import closure.
+			setOrDelete(r, "data", nil)
+		} else {
+			// Excluded entry points still execute as raw TypeScript. Keep their
+			// direct imports in the runtime closure, and keep package-local
+			// libraries out of deps so wrappers don't mistake them for the
+			// emitted entry-point owner.
+			data := append([]string{}, resolved.external...)
+			data = append(data, resolved.internal...)
+			data = append(data, globalResolved.external...)
+			setOrDelete(r, "data", data)
+
+			deps := append([]string{}, resolved.external...)
+			for _, dep := range resolved.internal {
+				if !strings.HasPrefix(dep, ":") {
+					deps = append(deps, dep)
+				}
+			}
+			deps = append(deps, globalResolved.external...)
+			setOrDelete(r, "deps", deps)
+		}
 		tsconfigTypes := append([]string{}, resolved.tsconfigTypes...)
 		tsconfigTypes = append(tsconfigTypes, globalResolved.tsconfigTypes...)
 		setOrDelete(r, "tsconfig_types", tsconfigTypes)

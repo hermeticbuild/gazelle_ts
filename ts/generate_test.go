@@ -208,15 +208,56 @@ func TestExistingLibraryNamePreservesExplicitDirective(t *testing.T) {
 	}
 }
 
-func TestExistingLibraryNameRequiresUnambiguousLibrary(t *testing.T) {
+func TestExistingLibraryNameUsesDefaultForAmbiguousLibraries(t *testing.T) {
 	file := &rule.File{Rules: []*rule.Rule{
 		rule.NewRule("js_library", "pkg"),
 		rule.NewRule(KindTsLibrary, "first"),
 		rule.NewRule(KindTsLibrary, "second"),
 	}}
 
+	if got := existingLibraryName(config.New(), file, newTsConfig(), "pkg"); got != fallbackLibraryName {
+		t.Fatalf("library name = %q, want %s", got, fallbackLibraryName)
+	}
+}
+
+func TestExistingLibraryNameAvoidsBinarySelfDependency(t *testing.T) {
+	file := &rule.File{Rules: []*rule.Rule{
+		rule.NewRule(KindTsBinary, "pkg"),
+	}}
+
+	if got := existingLibraryName(config.New(), file, newTsConfig(), "pkg"); got != fallbackLibraryName {
+		t.Fatalf("library name = %q, want %s", got, fallbackLibraryName)
+	}
+}
+
+func TestExistingLibraryNamePreservesUnrelatedCollision(t *testing.T) {
+	file := &rule.File{Rules: []*rule.Rule{
+		rule.NewRule("py_library", "pkg"),
+	}}
+
 	if got := existingLibraryName(config.New(), file, newTsConfig(), "pkg"); got != "pkg" {
 		t.Fatalf("library name = %q, want pkg", got)
+	}
+}
+
+func TestBinaryEntryPointInLibrary(t *testing.T) {
+	librarySources := map[string]bool{"main.ts": true}
+	for _, tc := range []struct {
+		name       string
+		entryPoint string
+		srcs       []string
+		want       bool
+	}{
+		{name: "explicit entry point", entryPoint: "main.ts", srcs: []string{"main.ts"}, want: true},
+		{name: "single source fallback", srcs: []string{"main.ts"}, want: true},
+		{name: "excluded entry point", entryPoint: "excluded.ts", srcs: []string{"excluded.ts"}},
+		{name: "ambiguous sources", srcs: []string{"main.ts", "helper.ts"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := binaryEntryPointInLibrary(tc.entryPoint, tc.srcs, librarySources); got != tc.want {
+				t.Fatalf("binaryEntryPointInLibrary() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

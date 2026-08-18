@@ -91,6 +91,7 @@ var tsKinds = map[string]rule.KindInfo{
 		NonEmptyAttrs:  map[string]bool{"deps": true, "data": true},
 		MergeableAttrs: map[string]bool{"deps": true, "data": true, "tsconfig_types": true},
 		ResolveAttrs: map[string]bool{
+			"deps":           true,
 			"data":           true,
 			"tsconfig_types": true,
 		},

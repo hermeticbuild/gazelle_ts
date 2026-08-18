@@ -1,0 +1,16 @@
+load("//:defs.bzl", "custom_ts_binary", "custom_ts_library")
+
+# gazelle:map_kind ts_library custom_ts_library //:defs.bzl
+# gazelle:map_kind ts_binary custom_ts_binary //:defs.bzl
+
+custom_ts_binary(
+    name = "lib",
+    entry_point = "main.ts",
+    deps = [":ts_default_library"],
+)
+
+custom_ts_library(
+    name = "ts_default_library",
+    srcs = ["main.ts"],
+    visibility = ["//visibility:public"],
+)

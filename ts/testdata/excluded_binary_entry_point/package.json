@@ -1,0 +1,6 @@
+{
+  "name": "excluded_binary_entry_point",
+  "dependencies": {
+    "minimist": "latest"
+  }
+}

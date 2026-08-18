@@ -559,7 +559,10 @@ func TestResolve_MappedTsBinaryPopulatesTsconfigTypes(t *testing.T) {
 		nil,
 		nil,
 		r,
-		ImportData{Imports: []ImportStatement{{ImportPath: "node:fs"}}},
+		ImportData{
+			Imports:           []ImportStatement{{ImportPath: "node:fs"}},
+			BinaryUsesLibrary: true,
+		},
 		label.Label{Pkg: "apps/cli", Name: "cli"},
 	)
 
