@@ -32,9 +32,9 @@ go_library(
         "parser.go",
         "resolve.go",
     ],
-    cgo = True,
     # Link the Rust rlib via cgo so transitive Rust crates remain dedupable.
     cdeps = ["//crates/import_extractor:import_extractor"],
+    cgo = True,
     # Rust std needs libunwind when linked through rlibs into a final cgo
     # binary. Force-load it because the Rust stdlib archive can otherwise
     # appear before the objects that reference _Unwind symbols.
@@ -82,6 +82,7 @@ go_test(
     }),
     embed = [":ts"],
     deps = [
+        "@gazelle//config",
         "@gazelle//rule",
     ],
 )

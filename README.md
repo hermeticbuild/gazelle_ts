@@ -255,8 +255,13 @@ Oxc detects a binary entrypoint when a file declares a top-level
 library owns the source and import closure, following Gazelle's Go binary
 pattern. These file-derived names are reserved for generated entrypoints so
 stale rules disappear when `main` changes. An existing `ts_binary` or
-`js_binary` claiming that file wins. Gazelle keeps hand-written binary `data`
-dependencies in sync.
+`js_binary` claiming that file wins. Existing `ts_binary` rules also depend on
+the sibling library, which emits their runtime import closure.
+
+Hand-written rules also keep package-local TypeScript sources named by
+literal `entry_point` or `srcs` attributes. Gazelle excludes those files from
+generated library, test, visual, and bundler rules. Binary entrypoints stay in
+the package library. Use `# gazelle:exclude` for computed source expressions.
 
 ## Supported Directives
 
@@ -457,9 +462,9 @@ runs.
 
 | Attr | Kind | Behavior |
 |---|---|---|
-| `entry_point` / `srcs` | both | Generated binaries get `entry_point`; Gazelle scans both attrs on hand-written binaries. |
-| `deps` | `ts_binary` | Generated binaries depend on their sibling `ts_library`; hand-written values remain untouched. |
-| `data` | both | Replaced with resolved deps from imports. |
+| `entry_point` / `srcs` | both | Generated binaries get `entry_point`; hand-written expressions stay user-owned while Gazelle scans literal values. |
+| `deps` | `ts_binary` | Binaries depend on their sibling `ts_library`. |
+| `data` | both | `ts_binary` keeps explicit `# keep` runtime files; `js_binary` gets resolved imports. |
 | `tsconfig_types` | `ts_binary` only | Inferred ambient type names. |
 
 ## Architecture
