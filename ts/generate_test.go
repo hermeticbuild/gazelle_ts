@@ -208,15 +208,15 @@ func TestExistingLibraryNamePreservesExplicitDirective(t *testing.T) {
 	}
 }
 
-func TestExistingLibraryNameUsesDefaultForAmbiguousLibraries(t *testing.T) {
+func TestExistingLibraryNameUsesCommandConventionForAmbiguousLibraries(t *testing.T) {
 	file := &rule.File{Rules: []*rule.Rule{
 		rule.NewRule("js_library", "pkg"),
 		rule.NewRule(KindTsLibrary, "first"),
 		rule.NewRule(KindTsLibrary, "second"),
 	}}
 
-	if got := existingLibraryName(config.New(), file, newTsConfig(), "pkg"); got != fallbackLibraryName {
-		t.Fatalf("library name = %q, want %s", got, fallbackLibraryName)
+	if got := existingLibraryName(config.New(), file, newTsConfig(), "pkg"); got != "pkg_lib" {
+		t.Fatalf("library name = %q, want pkg_lib", got)
 	}
 }
 
@@ -225,8 +225,19 @@ func TestExistingLibraryNameAvoidsBinarySelfDependency(t *testing.T) {
 		rule.NewRule(KindTsBinary, "pkg"),
 	}}
 
-	if got := existingLibraryName(config.New(), file, newTsConfig(), "pkg"); got != fallbackLibraryName {
-		t.Fatalf("library name = %q, want %s", got, fallbackLibraryName)
+	if got := existingLibraryName(config.New(), file, newTsConfig(), "pkg"); got != "pkg_lib" {
+		t.Fatalf("library name = %q, want pkg_lib", got)
+	}
+}
+
+func TestExistingLibraryNameAvoidsCommandLibraryCollision(t *testing.T) {
+	file := &rule.File{Rules: []*rule.Rule{
+		rule.NewRule(KindTsBinary, "pkg"),
+		rule.NewRule("py_library", "pkg_lib"),
+	}}
+
+	if got := existingLibraryName(config.New(), file, newTsConfig(), "pkg"); got != "pkg_lib_2" {
+		t.Fatalf("library name = %q, want pkg_lib_2", got)
 	}
 }
 

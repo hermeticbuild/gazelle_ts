@@ -12,7 +12,7 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 )
 
-const fallbackLibraryName = "ts_default_library"
+const commandLibrarySuffix = "_lib"
 
 // kindMatches returns true when ruleKind matches the canonical name, accounting
 // for `# gazelle:map_kind` rewrites: a rule on disk may carry the post-mapped
@@ -368,7 +368,8 @@ func binaryEntryPointInLibrary(entryPoint string, srcs []string, librarySources 
 }
 
 // existingLibraryName avoids target-name collisions. It reuses the sole
-// existing package library or falls back to a Go-style default library name.
+// existing package library or follows Gazelle's Go import naming convention
+// for command libraries by appending "_lib".
 func existingLibraryName(c *config.Config, file *rule.File, cfg *tsConfig, defaultName string) string {
 	if file == nil || cfg.libraryName != "" {
 		return defaultName
@@ -402,11 +403,12 @@ func existingLibraryName(c *config.Config, file *rule.File, cfg *tsConfig, defau
 	if len(libraries) == 0 && !defaultNameTakenByBinary {
 		return defaultName
 	}
-	if !taken[fallbackLibraryName] {
-		return fallbackLibraryName
+	commandLibraryName := defaultName + commandLibrarySuffix
+	if !taken[commandLibraryName] {
+		return commandLibraryName
 	}
 	for suffix := 2; ; suffix++ {
-		name := fmt.Sprintf("%s_%d", fallbackLibraryName, suffix)
+		name := fmt.Sprintf("%s_%d", commandLibraryName, suffix)
 		if !taken[name] {
 			return name
 		}

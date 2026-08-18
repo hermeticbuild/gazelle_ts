@@ -6,11 +6,11 @@ load("//:defs.bzl", "custom_ts_binary", "custom_ts_library")
 custom_ts_binary(
     name = "lib",
     entry_point = "main.ts",
-    deps = [":ts_default_library"],
+    deps = [":lib_lib"],
 )
 
 custom_ts_library(
-    name = "ts_default_library",
+    name = "lib_lib",
     srcs = ["main.ts"],
     visibility = ["//visibility:public"],
 )
