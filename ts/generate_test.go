@@ -178,6 +178,48 @@ func TestResolveRuleNames(t *testing.T) {
 	}
 }
 
+func TestExistingLibraryName(t *testing.T) {
+	c := config.New()
+	c.KindMap = map[string]config.MappedKind{}
+	c.KindMap[KindTsLibrary] = config.MappedKind{
+		FromKind: KindTsLibrary,
+		KindName: "custom_ts_library",
+	}
+
+	generated := rule.NewRule("custom_ts_library", "typescript-lib")
+	artifact := rule.NewRule("js_library", "pkg")
+	file := &rule.File{Rules: []*rule.Rule{artifact, generated}}
+
+	if got, want := existingLibraryName(c, file, newTsConfig(), "pkg"), "typescript-lib"; got != want {
+		t.Fatalf("library name = %q, want %q", got, want)
+	}
+}
+
+func TestExistingLibraryNamePreservesExplicitDirective(t *testing.T) {
+	cfg := newTsConfig()
+	cfg.libraryName = "configured"
+	file := &rule.File{Rules: []*rule.Rule{
+		rule.NewRule("js_library", "configured"),
+		rule.NewRule(KindTsLibrary, "other"),
+	}}
+
+	if got := existingLibraryName(config.New(), file, cfg, "configured"); got != "configured" {
+		t.Fatalf("library name = %q, want configured", got)
+	}
+}
+
+func TestExistingLibraryNameRequiresUnambiguousLibrary(t *testing.T) {
+	file := &rule.File{Rules: []*rule.Rule{
+		rule.NewRule("js_library", "pkg"),
+		rule.NewRule(KindTsLibrary, "first"),
+		rule.NewRule(KindTsLibrary, "second"),
+	}}
+
+	if got := existingLibraryName(config.New(), file, newTsConfig(), "pkg"); got != "pkg" {
+		t.Fatalf("library name = %q, want pkg", got)
+	}
+}
+
 func TestCollectSrcs(t *testing.T) {
 	cfg := newTsConfig()
 	files := []string{
