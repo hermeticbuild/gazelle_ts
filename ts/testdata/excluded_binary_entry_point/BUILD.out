@@ -1,0 +1,21 @@
+load("//:defs.bzl", "custom_ts_binary", "custom_ts_library")
+
+# gazelle:exclude excluded.ts
+# gazelle:map_kind ts_library custom_ts_library //:defs.bzl
+# gazelle:map_kind ts_binary custom_ts_binary //:defs.bzl
+
+custom_ts_binary(
+    name = "excluded",
+    data = [
+        ":lib",
+        "//:node_modules/minimist",
+    ],
+    entry_point = "excluded.ts",
+    deps = ["//:node_modules/minimist"],
+)
+
+custom_ts_library(
+    name = "lib",
+    srcs = ["helper.ts"],
+    visibility = ["//visibility:public"],
+)

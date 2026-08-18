@@ -1,6 +1,7 @@
 package ts
 
 import (
+	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -10,6 +11,8 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/rule"
 	"github.com/bmatcuk/doublestar/v4"
 )
+
+const commandLibrarySuffix = "_lib"
 
 // kindMatches returns true when ruleKind matches the canonical name, accounting
 // for `# gazelle:map_kind` rewrites: a rule on disk may carry the post-mapped
@@ -33,10 +36,11 @@ func kindMatches(c *config.Config, ruleKind, canonical string) bool {
 // runs GenerateRules during the directory walk (before the RuleIndex is
 // complete) and Resolve afterwards, so we stash everything we'll need here.
 type ImportData struct {
-	Imports     []ImportStatement // source-file imports
-	TestImports []ImportStatement // test-file imports
-	Globals     []GlobalReference // source-file global references
-	TestGlobals []GlobalReference // test-file global references
+	Imports           []ImportStatement // source-file imports
+	TestImports       []ImportStatement // test-file imports
+	Globals           []GlobalReference // source-file global references
+	TestGlobals       []GlobalReference // test-file global references
+	BinaryUsesLibrary bool
 }
 
 // GenerateRules walks a directory's files, partitions them into source, test,
@@ -65,6 +69,10 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	libSrcs := parts.lib
 	testSrcs := parts.test
 	visualLibrarySrcs := parts.visualLibrary
+	librarySources := make(map[string]bool, len(libSrcs))
+	for _, source := range libSrcs {
+		librarySources[filepath.ToSlash(source)] = true
+	}
 
 	var tsFiles []string
 	for _, f := range args.RegularFiles {
@@ -110,10 +118,12 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 				kind: canonical,
 				name: r.Name(),
 			}
-			if canonical == KindTsBinary && len(libSrcs) > 0 {
+			entryPoint := r.AttrString("entry_point")
+			srcs := r.AttrStrings("srcs")
+			if canonical == KindTsBinary && binaryEntryPointInLibrary(entryPoint, srcs, librarySources) {
 				ref.deps = []string{":" + libName}
 			}
-			candidates := append([]string{r.AttrString("entry_point")}, r.AttrStrings("srcs")...)
+			candidates := append([]string{entryPoint}, srcs...)
 			for _, c := range candidates {
 				if c == "" || !isTypeScriptFile(c, cfg) {
 					continue
@@ -294,8 +304,9 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		}
 		genRules = append(genRules, r)
 		genImports = append(genImports, ImportData{
-			Imports: imps,
-			Globals: globals,
+			Imports:           imps,
+			Globals:           globals,
+			BinaryUsesLibrary: len(b.deps) > 0,
 		})
 	}
 
@@ -349,29 +360,59 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	}
 }
 
-// existingLibraryName reuses the sole package library when another rule kind
-// owns the default target name. Binary deps then stay on the TypeScript library.
+func binaryEntryPointInLibrary(entryPoint string, srcs []string, librarySources map[string]bool) bool {
+	if entryPoint == "" && len(srcs) == 1 {
+		entryPoint = srcs[0]
+	}
+	return librarySources[filepath.ToSlash(entryPoint)]
+}
+
+// existingLibraryName avoids target-name collisions. It reuses the sole
+// existing package library or follows Gazelle's Go import naming convention
+// for command libraries by appending "_lib".
 func existingLibraryName(c *config.Config, file *rule.File, cfg *tsConfig, defaultName string) string {
 	if file == nil || cfg.libraryName != "" {
 		return defaultName
 	}
 
+	taken := map[string]bool{}
 	defaultNameTaken := false
+	defaultNameTakenByBinary := false
 	var libraries []string
 	for _, r := range file.Rules {
+		taken[r.Name()] = true
 		if kindMatches(c, r.Kind(), KindTsLibrary) {
 			libraries = append(libraries, r.Name())
 			continue
 		}
 		if r.Name() == defaultName {
 			defaultNameTaken = true
+			defaultNameTakenByBinary = isManagedBinary(c, r)
 		}
 	}
 
-	if defaultNameTaken && len(libraries) == 1 {
+	if !defaultNameTaken {
+		return defaultName
+	}
+	if len(libraries) == 1 {
 		return libraries[0]
 	}
-	return defaultName
+	// Preserve Gazelle's existing merge behavior for unrelated target-name
+	// collisions. Only invent a fallback when a binary would otherwise depend
+	// on itself, or multiple package libraries make reuse ambiguous.
+	if len(libraries) == 0 && !defaultNameTakenByBinary {
+		return defaultName
+	}
+	commandLibraryName := defaultName + commandLibrarySuffix
+	if !taken[commandLibraryName] {
+		return commandLibraryName
+	}
+	for suffix := 2; ; suffix++ {
+		name := fmt.Sprintf("%s_%d", commandLibraryName, suffix)
+		if !taken[name] {
+			return name
+		}
+	}
 }
 
 func binaryNameForSource(source string, cfg *tsConfig) string {
