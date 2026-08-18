@@ -51,8 +51,8 @@ const (
 // kind: consumers map_kind it to a real macro.
 const KindBundlerConfig = "ts_bundler_config"
 
-// managedBinaryKinds enumerates rule kinds where hand-written rules get their
-// entry_point/srcs imports resolved into `data`.
+// managedBinaryKinds enumerates hand-written binary kinds whose entry points
+// Gazelle scans. ts_binary embeds its sibling library; js_binary uses data.
 var managedBinaryKinds = []string{KindJsBinary, KindTsBinary}
 
 var tsKinds = map[string]rule.KindInfo{
@@ -88,8 +88,8 @@ var tsKinds = map[string]rule.KindInfo{
 		},
 	},
 	KindTsBinary: {
-		NonEmptyAttrs:  map[string]bool{"entry_point": true, "srcs": true, "deps": true, "data": true},
-		MergeableAttrs: map[string]bool{"entry_point": true, "srcs": true, "deps": true, "data": true, "tsconfig_types": true},
+		NonEmptyAttrs:  map[string]bool{"deps": true, "data": true},
+		MergeableAttrs: map[string]bool{"deps": true, "data": true, "tsconfig_types": true},
 		ResolveAttrs: map[string]bool{
 			"data":           true,
 			"tsconfig_types": true,

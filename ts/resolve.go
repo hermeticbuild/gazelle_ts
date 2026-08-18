@@ -123,21 +123,25 @@ func (l *tsLang) Resolve(
 		tsconfigTypes = append(tsconfigTypes, globalResolved.tsconfigTypes...)
 		setOrDelete(r, "tsconfig_types", tsconfigTypes)
 
-	case kindMatches(c, r.Kind(), KindJsBinary), kindMatches(c, r.Kind(), KindTsBinary):
-		// Hand-written binaries get direct runtime deps from their
-		// entry_point/srcs imports. Generated ts_binary rules carry no imports
-		// here because their sibling library owns that closure.
+	case kindMatches(c, r.Kind(), KindJsBinary):
+		// js_binary has no compile-time deps attr, so its source imports must be
+		// available through data.
 		resolved := l.resolveImportsToDeps(c, importData.Imports, from, ix, cfg)
 		globalResolved := resolveGlobalsToDeps(importData.Globals, cfg)
 		all := append([]string{}, resolved.external...)
 		all = append(all, resolved.internal...)
 		all = append(all, globalResolved.external...)
 		setOrDelete(r, "data", all)
-		if kindMatches(c, r.Kind(), KindTsBinary) {
-			tsconfigTypes := append([]string{}, resolved.tsconfigTypes...)
-			tsconfigTypes = append(tsconfigTypes, globalResolved.tsconfigTypes...)
-			setOrDelete(r, "tsconfig_types", tsconfigTypes)
-		}
+
+	case kindMatches(c, r.Kind(), KindTsBinary):
+		// The sibling library owns and emits the source and import closure. Keep
+		// data empty except for explicit # keep runtime files.
+		resolved := l.resolveImportsToDeps(c, importData.Imports, from, ix, cfg)
+		globalResolved := resolveGlobalsToDeps(importData.Globals, cfg)
+		setOrDelete(r, "data", nil)
+		tsconfigTypes := append([]string{}, resolved.tsconfigTypes...)
+		tsconfigTypes = append(tsconfigTypes, globalResolved.tsconfigTypes...)
+		setOrDelete(r, "tsconfig_types", tsconfigTypes)
 
 	case kindMatches(c, r.Kind(), KindBundlerConfig):
 		// Bundler-config rules are a separate compilation unit so build-time

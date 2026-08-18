@@ -566,8 +566,8 @@ func TestResolve_MappedTsBinaryPopulatesTsconfigTypes(t *testing.T) {
 	if got, want := r.AttrStrings("tsconfig_types"), []string{"node"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("tsconfig_types = %v, want %v", got, want)
 	}
-	if got, want := r.AttrStrings("data"), []string{"//:node_modules/@types/node"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("data = %v, want %v", got, want)
+	if got := r.AttrStrings("data"); len(got) != 0 {
+		t.Errorf("data = %v, want empty", got)
 	}
 }
 

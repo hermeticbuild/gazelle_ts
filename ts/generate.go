@@ -51,18 +51,28 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 
 	libName, testName, visualLibraryName := resolveRuleNames(cfg, args.Rel)
 	parts := collectSrcs(args.RegularFiles, cfg)
+	ownedSources := existingRuleOwnedSources(
+		args.Config,
+		args.File,
+		cfg,
+		args.RegularFiles,
+		libName,
+		testName,
+		visualLibraryName,
+	)
+	parts.removeOwned(ownedSources)
 	libSrcs := parts.lib
 	testSrcs := parts.test
 	visualLibrarySrcs := parts.visualLibrary
 
 	var tsFiles []string
 	for _, f := range args.RegularFiles {
-		if isTypeScriptFile(f, cfg) {
+		if isTypeScriptFile(f, cfg) && !ownedSources[filepath.ToSlash(f)] {
 			tsFiles = append(tsFiles, filepath.Join(args.Dir, f))
 		}
 	}
 
-	// Discover hand-written binaries whose deps we manage. Oxc-detected main
+	// Discover hand-written binaries. Oxc-detected main
 	// entrypoints are added after extraction unless an existing binary already
 	// claims the source.
 	type binaryRef struct {
@@ -96,10 +106,11 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 				continue
 			}
 			ref := binaryRef{
-				kind:       canonical,
-				name:       r.Name(),
-				entryPoint: r.AttrString("entry_point"),
-				srcs:       r.AttrStrings("srcs"),
+				kind: canonical,
+				name: r.Name(),
+			}
+			if canonical == KindTsBinary && len(libSrcs) > 0 {
+				ref.deps = []string{":" + libName}
 			}
 			candidates := append([]string{r.AttrString("entry_point")}, r.AttrStrings("srcs")...)
 			for _, c := range candidates {
@@ -140,7 +151,7 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	if len(tsFiles) > 0 {
 		allRefs, _ = l.extractImportsBatch(tsFiles)
 		for _, f := range args.RegularFiles {
-			if !isTypeScriptFile(f, cfg) {
+			if !isTypeScriptFile(f, cfg) || ownedSources[filepath.ToSlash(f)] {
 				continue
 			}
 			fullPath := filepath.Join(args.Dir, f)
@@ -450,6 +461,125 @@ type partitionedSrcs struct {
 	test           []string
 	visualLibrary  []string
 	bundlerConfigs map[int][]string
+}
+
+func (p *partitionedSrcs) removeOwned(owned map[string]bool) {
+	p.lib = withoutOwnedSources(p.lib, owned)
+	p.test = withoutOwnedSources(p.test, owned)
+	p.visualLibrary = withoutOwnedSources(p.visualLibrary, owned)
+	for index, sources := range p.bundlerConfigs {
+		p.bundlerConfigs[index] = withoutOwnedSources(sources, owned)
+	}
+}
+
+func withoutOwnedSources(sources []string, owned map[string]bool) []string {
+	kept := make([]string, 0, len(sources))
+	for _, source := range sources {
+		if !owned[filepath.ToSlash(source)] {
+			kept = append(kept, source)
+		}
+	}
+	return kept
+}
+
+// existingRuleOwnedSources finds package-local TypeScript files claimed by
+// hand-written rules. Generated aggregate rules and binary launchers are
+// excluded: their sources intentionally remain owned by the package library.
+func existingRuleOwnedSources(
+	c *config.Config,
+	file *rule.File,
+	cfg *tsConfig,
+	regularFiles []string,
+	libName string,
+	testName string,
+	visualLibraryName string,
+) map[string]bool {
+	owned := map[string]bool{}
+	if file == nil {
+		return owned
+	}
+
+	available := make(map[string]bool, len(regularFiles))
+	for _, source := range regularFiles {
+		available[filepath.ToSlash(source)] = true
+	}
+
+	for _, r := range file.Rules {
+		if isManagedBinary(c, r) || isGeneratedRule(c, r, cfg, libName, testName, visualLibraryName) {
+			continue
+		}
+		for _, attr := range []string{"entry_point", "srcs"} {
+			for _, source := range localSourcesFromAttr(r, attr, available) {
+				if isTypeScriptFile(source, cfg) {
+					owned[source] = true
+				}
+			}
+		}
+	}
+	return owned
+}
+
+func isManagedBinary(c *config.Config, r *rule.Rule) bool {
+	for _, kind := range managedBinaryKinds {
+		if kindMatches(c, r.Kind(), kind) {
+			return true
+		}
+	}
+	return false
+}
+
+func isGeneratedRule(
+	c *config.Config,
+	r *rule.Rule,
+	cfg *tsConfig,
+	libName string,
+	testName string,
+	visualLibraryName string,
+) bool {
+	if kindMatches(c, r.Kind(), KindTsLibrary) && r.Name() == libName {
+		return true
+	}
+	if kindMatches(c, r.Kind(), KindTsTest) && r.Name() == testName {
+		return true
+	}
+	if kindMatches(c, r.Kind(), KindTsVisualLibrary) && r.Name() == visualLibraryName {
+		return true
+	}
+	if !kindMatches(c, r.Kind(), KindBundlerConfig) {
+		return false
+	}
+	for _, spec := range cfg.bundlerConfigSpecs {
+		if spec.Name == r.Name() {
+			return true
+		}
+	}
+	return false
+}
+
+func localSourcesFromAttr(r *rule.Rule, attr string, available map[string]bool) []string {
+	seen := map[string]bool{}
+	var sources []string
+	candidates := append([]string{r.AttrString(attr)}, r.AttrStrings(attr)...)
+	for _, source := range candidates {
+		source = normalizeLocalSource(source)
+		if !available[source] || seen[source] {
+			continue
+		}
+		seen[source] = true
+		sources = append(sources, source)
+	}
+	sort.Strings(sources)
+	return sources
+}
+
+func normalizeLocalSource(source string) string {
+	source = filepath.ToSlash(source)
+	if strings.HasPrefix(source, "//") || strings.HasPrefix(source, "@") {
+		return ""
+	}
+	source = strings.TrimPrefix(source, ":")
+	source = strings.TrimPrefix(source, "./")
+	return source
 }
 
 // collectSrcs partitions the directory's files for emission. Bundler-config

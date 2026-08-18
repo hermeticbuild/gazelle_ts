@@ -3,6 +3,9 @@ package ts
 import (
 	"reflect"
 	"testing"
+
+	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
 func TestIsTypeScriptFile(t *testing.T) {
@@ -210,6 +213,96 @@ func TestCollectSrcs(t *testing.T) {
 	}
 }
 
+func TestExistingRuleOwnedSources(t *testing.T) {
+	cfg := newTsConfig()
+	c := config.New()
+	binary := rule.NewRule(KindTsBinary, "cli")
+	binary.SetAttr("entry_point", "main.ts")
+	customTest := rule.NewRule("js_test", "custom_test")
+	customTest.SetAttr("entry_point", "owned.test.ts")
+	resource := rule.NewRule("filegroup", "templates")
+	resource.SetAttr("srcs", []string{"template.ts"})
+	resource.SetAttr("data", []string{"runtime.ts"})
+	generated := rule.NewRule(KindTsLibrary, "pkg")
+	generated.SetAttr("srcs", []string{"library.ts"})
+	file := &rule.File{Rules: []*rule.Rule{binary, customTest, resource, generated}}
+
+	owned := existingRuleOwnedSources(
+		c,
+		file,
+		cfg,
+		[]string{"main.ts", "owned.test.ts", "template.ts", "runtime.ts", "library.ts"},
+		"pkg",
+		"pkg_test",
+		"pkg_visual_library",
+	)
+
+	want := map[string]bool{
+		"owned.test.ts": true,
+		"template.ts":   true,
+	}
+	if !reflect.DeepEqual(owned, want) {
+		t.Fatalf("owned sources = %v, want %v", owned, want)
+	}
+}
+
+func TestLocalSourcesFromAttr(t *testing.T) {
+	file, err := rule.LoadData("BUILD.bazel", "pkg", []byte(`
+filegroup(
+    name = "resources",
+    srcs = [
+        ":literal.ts",
+        "./selected.ts",
+        "//other:external.ts",
+    ],
+)
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	available := map[string]bool{
+		"literal.ts":   true,
+		"selected.ts":  true,
+		"unrelated.ts": true,
+	}
+
+	got := localSourcesFromAttr(file.Rules[0], "srcs", available)
+	want := []string{"literal.ts", "selected.ts"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("local sources = %v, want %v", got, want)
+	}
+}
+
+func TestPartitionedSrcsRemoveOwned(t *testing.T) {
+	parts := partitionedSrcs{
+		lib:           []string{"owned.ts", "visible.ts"},
+		test:          []string{"owned.test.ts", "visible.test.ts"},
+		visualLibrary: []string{"owned.story.tsx", "visible.story.tsx"},
+		bundlerConfigs: map[int][]string{
+			0: {"owned.config.ts", "visible.config.ts"},
+		},
+	}
+	parts.removeOwned(map[string]bool{
+		"owned.ts":        true,
+		"owned.test.ts":   true,
+		"owned.story.tsx": true,
+		"owned.config.ts": true,
+	})
+
+	if got, want := parts.lib, []string{"visible.ts"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("library sources = %v, want %v", got, want)
+	}
+	if got, want := parts.test, []string{"visible.test.ts"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("test sources = %v, want %v", got, want)
+	}
+	if got, want := parts.visualLibrary, []string{"visible.story.tsx"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("visual sources = %v, want %v", got, want)
+	}
+	if got, want := parts.bundlerConfigs[0], []string{"visible.config.ts"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("bundler sources = %v, want %v", got, want)
+	}
+}
+
 func TestCollectSrcs_BundlerConfigSplit(t *testing.T) {
 	cfg := newTsConfig()
 	cfg.bundlerConfigSpecs = []bundlerConfigSpec{
@@ -333,8 +426,8 @@ func TestBinaryNameForSource(t *testing.T) {
 }
 
 func TestKinds_HasTsBinary(t *testing.T) {
-	// Without a KindInfo entry the merge engine treats ts_binary rules as
-	// unmanaged: data wouldn't be a ResolveAttr and wouldn't be replaced.
+	// Gazelle manages binary runtime imports and ambient types; generation
+	// supplies the sibling-library dependency.
 	if _, ok := tsKinds[KindTsBinary]; !ok {
 		t.Fatalf("tsKinds missing %q", KindTsBinary)
 	}
@@ -344,6 +437,11 @@ func TestKinds_HasTsBinary(t *testing.T) {
 	}
 	if !info.MergeableAttrs["data"] {
 		t.Errorf("ts_binary should have data as MergeableAttr")
+	}
+	for _, attr := range []string{"entry_point", "srcs"} {
+		if info.MergeableAttrs[attr] || info.NonEmptyAttrs[attr] {
+			t.Errorf("ts_binary %s should remain user-owned", attr)
+		}
 	}
 }
 
