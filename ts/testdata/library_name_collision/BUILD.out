@@ -1,0 +1,23 @@
+load("//:defs.bzl", "custom_ts_binary", "custom_ts_library")
+
+# gazelle:map_kind ts_library custom_ts_library //:defs.bzl
+# gazelle:map_kind ts_binary custom_ts_binary //:defs.bzl
+
+js_library(
+    name = "lib",
+)
+
+custom_ts_library(
+    name = "typescript-lib",
+    srcs = [
+        "helper.ts",
+        "main.ts",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+custom_ts_binary(
+    name = "main",
+    entry_point = "main.ts",
+    deps = [":typescript-lib"],
+)

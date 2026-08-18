@@ -50,6 +50,7 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	}
 
 	libName, testName, visualLibraryName := resolveRuleNames(cfg, args.Rel)
+	libName = existingLibraryName(args.Config, args.File, cfg, libName)
 	parts := collectSrcs(args.RegularFiles, cfg)
 	ownedSources := existingRuleOwnedSources(
 		args.Config,
@@ -346,6 +347,31 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		Empty:   emptyRules,
 		Imports: genImports,
 	}
+}
+
+// existingLibraryName reuses the sole package library when another rule kind
+// owns the default target name. Binary deps then stay on the TypeScript library.
+func existingLibraryName(c *config.Config, file *rule.File, cfg *tsConfig, defaultName string) string {
+	if file == nil || cfg.libraryName != "" {
+		return defaultName
+	}
+
+	defaultNameTaken := false
+	var libraries []string
+	for _, r := range file.Rules {
+		if kindMatches(c, r.Kind(), KindTsLibrary) {
+			libraries = append(libraries, r.Name())
+			continue
+		}
+		if r.Name() == defaultName {
+			defaultNameTaken = true
+		}
+	}
+
+	if defaultNameTaken && len(libraries) == 1 {
+		return libraries[0]
+	}
+	return defaultName
 }
 
 func binaryNameForSource(source string, cfg *tsConfig) string {
