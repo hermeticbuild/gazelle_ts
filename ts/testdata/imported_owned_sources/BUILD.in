@@ -1,0 +1,23 @@
+load("@aspect_rules_js//js:defs.bzl", "js_binary")
+load("@gazelle_ts//ts:defs.bzl", "ts_library")
+
+# gazelle:ts_test_pattern setup.ts
+
+filegroup(
+    name = "runtime_sources",
+    srcs = [
+        "resource.ts",
+        "setup.ts",
+        "unused.template.ts",
+    ],
+)
+
+js_binary(
+    name = "cli",
+    entry_point = "cli.ts",
+)
+
+ts_library(
+    name = "split",
+    srcs = ["split.ts"],
+)

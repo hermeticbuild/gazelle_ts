@@ -259,9 +259,17 @@ stale rules disappear when `main` changes. An existing `ts_binary` or
 the sibling library, which emits their runtime import closure.
 
 Hand-written rules also keep package-local TypeScript sources named by
-literal `entry_point` or `srcs` attributes. Gazelle excludes those files from
-generated library, test, visual, and bundler rules. Binary entrypoints stay in
-the package library. Use `# gazelle:exclude` for computed source expressions.
+`entry_point` or `srcs`. Gazelle reads strings, lists, concatenation, `select`,
+and `glob` expressions. Explicit TypeScript libraries remain the canonical
+providers for their sources, including when generated code imports them.
+
+Non-compiling rules may own explicit files and narrow resource globs. Broad
+scanner globs such as `glob(["**/*.ts"])` do not claim compile ownership. If
+generated code imports a resource-owned TypeScript file, Gazelle retains that
+file in the generated library so the import still has a compile provider.
+Unused resource files remain excluded. Managed binaries retain their existing
+split: `ts_binary` may execute through the sibling library, while `js_binary`
+keeps direct source and runtime dependency resolution.
 
 ## Supported Directives
 

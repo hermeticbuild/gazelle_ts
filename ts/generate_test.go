@@ -321,7 +321,7 @@ func TestExistingRuleOwnedSources(t *testing.T) {
 	generated.SetAttr("srcs", []string{"library.ts"})
 	file := &rule.File{Rules: []*rule.Rule{binary, customTest, resource, generated}}
 
-	owned := existingRuleOwnedSources(
+	ownership := existingRuleSourceOwnership(
 		c,
 		file,
 		cfg,
@@ -335,8 +335,15 @@ func TestExistingRuleOwnedSources(t *testing.T) {
 		"owned.test.ts": true,
 		"template.ts":   true,
 	}
-	if !reflect.DeepEqual(owned, want) {
-		t.Fatalf("owned sources = %v, want %v", owned, want)
+	if !reflect.DeepEqual(ownership.claimed, want) {
+		t.Fatalf("owned sources = %v, want %v", ownership.claimed, want)
+	}
+	wantCompileRoots := map[string]bool{"owned.test.ts": true}
+	if !reflect.DeepEqual(ownership.compileRoots, wantCompileRoots) {
+		t.Fatalf("compile roots = %v, want %v", ownership.compileRoots, wantCompileRoots)
+	}
+	if len(ownership.providers) != 0 {
+		t.Fatalf("providers = %v, want empty", ownership.providers)
 	}
 }
 
