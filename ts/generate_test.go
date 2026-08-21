@@ -354,7 +354,9 @@ filegroup(
     srcs = [
         ":literal.ts",
         "./selected.ts",
+        "*.ts",
         "//other:external.ts",
+        "../escaped.ts",
     ],
 )
 `))
@@ -367,10 +369,10 @@ filegroup(
 		"unrelated.ts": true,
 	}
 
-	got := localSourcesFromAttr(file.Rules[0], "srcs", available)
+	got, ok := localSourcesFromAttr(file.Rules[0], "srcs", available)
 	want := []string{"literal.ts", "selected.ts"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("local sources = %v, want %v", got, want)
+	if !ok || !reflect.DeepEqual(got, want) {
+		t.Fatalf("local sources = %v, %v; want %v, true", got, ok, want)
 	}
 }
 
@@ -400,6 +402,34 @@ func TestPartitionedSrcsRemoveOwned(t *testing.T) {
 		t.Errorf("visual sources = %v, want %v", got, want)
 	}
 	if got, want := parts.bundlerConfigs[0], []string{"visible.config.ts"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("bundler sources = %v, want %v", got, want)
+	}
+}
+
+func TestPartitionedSrcsPlaceOwnedSources(t *testing.T) {
+	parts := partitionedSrcs{
+		lib:           []string{"app.ts"},
+		test:          []string{"helper.test.ts"},
+		visualLibrary: []string{"Button.story.tsx"},
+		bundlerConfigs: map[int][]string{
+			0: {"vite.config.ts"},
+		},
+	}
+	parts.placeOwnedSources(map[string]sourcePartition{
+		"helper.test.ts": {kind: sourcePartitionLibrary},
+		"Button.story.tsx": {
+			kind:         sourcePartitionBundler,
+			bundlerIndex: 0,
+		},
+	})
+
+	if got, want := parts.lib, []string{"app.ts", "helper.test.ts"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("library sources = %v, want %v", got, want)
+	}
+	if len(parts.test) != 0 || len(parts.visualLibrary) != 0 {
+		t.Errorf("old partitions retain moved sources: test=%v visual=%v", parts.test, parts.visualLibrary)
+	}
+	if got, want := parts.bundlerConfigs[0], []string{"Button.story.tsx", "vite.config.ts"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("bundler sources = %v, want %v", got, want)
 	}
 }

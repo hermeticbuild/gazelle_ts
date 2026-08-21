@@ -6,6 +6,7 @@ load("@gazelle_ts//ts:defs.bzl", "ts_library")
 filegroup(
     name = "runtime_sources",
     srcs = [
+        "helper.test.ts",
         "resource.ts",
         "setup.ts",
         "unused.template.ts",

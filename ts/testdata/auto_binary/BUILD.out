@@ -2,25 +2,43 @@ load("@gazelle_ts//ts:defs.bzl", "ts_binary", "ts_library")
 
 ts_binary(
     name = "custom",
+    srcs = [
+        "bootstrap.js",
+        "existing.ts",
+    ],
     entry_point = "existing.ts",
     deps = [":lib"],
+)
+
+ts_binary(
+    name = "computed",
+    srcs = select({
+        "//conditions:default": ["computed.ts"],
+    }),
+    entry_point = "computed.ts",
+    deps = ["//manual:dep"],
+)
+
+ts_binary(
+    name = "mixed",
+    srcs = [
+        "mixed.ts",
+        GENERATED_SRCS,
+    ],
+    deps = ["//manual:dep"],
 )
 
 ts_library(
     name = "lib",
     srcs = [
+        "computed.ts",
         "existing.ts",
         "helper.ts",
         "main.ts",
+        "mixed.ts",
         "stale.ts",
     ],
     tsconfig_types = ["node"],
     visibility = ["//visibility:public"],
     deps = ["//:node_modules/@types/node"],
-)
-
-ts_binary(
-    name = "main_bin",
-    entry_point = "main.ts",
-    deps = [":lib"],
 )

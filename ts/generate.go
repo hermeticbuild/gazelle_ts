@@ -2,6 +2,7 @@ package ts
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -56,6 +57,17 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	libName, testName, visualLibraryName := resolveRuleNames(cfg, args.Rel)
 	libName = existingLibraryName(args.Config, args.File, cfg, libName)
 	parts := collectSrcs(args.RegularFiles, cfg)
+	availableSources := make(map[string]bool, len(args.RegularFiles))
+	for _, source := range args.RegularFiles {
+		availableSources[filepath.ToSlash(source)] = true
+	}
+	sourceExists := func(source string) bool {
+		if availableSources[source] {
+			return true
+		}
+		info, err := os.Stat(filepath.Join(args.Dir, filepath.FromSlash(source)))
+		return err == nil && !info.IsDir()
+	}
 	ownership := existingRuleSourceOwnership(
 		args.Config,
 		args.File,
@@ -79,6 +91,7 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	type binaryRef struct {
 		kind       string
 		name       string
+		existing   bool
 		files      []string // package-relative TS files whose imports need direct resolution
 		entryPoint string
 		srcs       []string
@@ -90,6 +103,7 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	libraryBackedBinaryFiles := map[string]bool{}
 	existingNames := map[string]bool{}
 	reservedBinaries := map[string]string{}
+	suppressAutoBinaries := hasOpaqueManagedBinarySources(args.Config, args.File)
 	if args.File != nil {
 		seen := make(map[string]bool, len(tsFiles))
 		for _, f := range tsFiles {
@@ -108,18 +122,39 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 				continue
 			}
 			ref := binaryRef{
-				kind: canonical,
-				name: r.Name(),
+				kind:     canonical,
+				name:     r.Name(),
+				existing: true,
 			}
-			entryPoint := r.AttrString("entry_point")
-			srcs := r.AttrStrings("srcs")
-			ref.entryPoint = entryPoint
-			ref.srcs = srcs
-			candidates := append([]string{entryPoint}, srcs...)
+			entryPoint, entryPointIsLiteral := literalStringAttr(r, "entry_point")
+			srcs, srcsAreLiteral := literalStringListAttr(r, "srcs")
+			if !entryPointIsLiteral || !srcsAreLiteral {
+				knownSources := append([]string(nil), srcs...)
+				if entryPointIsLiteral {
+					knownSources = append(knownSources, entryPoint)
+				}
+				for _, source := range knownSources {
+					source = normalizeLocalSource(source)
+					if sourceExists(source) && isTypeScriptFile(source, cfg) {
+						binaryFiles[source] = true
+					}
+				}
+				continue
+			}
+			ref.entryPoint = normalizeLocalSource(entryPoint)
+			for _, source := range srcs {
+				source = normalizeLocalSource(source)
+				if sourceExists(source) && isTypeScriptFile(source, cfg) {
+					ref.srcs = append(ref.srcs, source)
+				}
+			}
+			candidates := append([]string{ref.entryPoint}, ref.srcs...)
+			refFiles := map[string]bool{}
 			for _, c := range candidates {
-				if c == "" || !isTypeScriptFile(c, cfg) {
+				if !sourceExists(c) || !isTypeScriptFile(c, cfg) || refFiles[c] {
 					continue
 				}
+				refFiles[c] = true
 				ref.files = append(ref.files, c)
 				full := filepath.Join(args.Dir, c)
 				if !seen[full] {
@@ -159,16 +194,18 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		allRefs, _ = l.extractImportsBatch(tsFiles)
 	}
 
-	removableOwnedSources := l.removableOwnedSources(
+	removableOwnedSources, ownedPlacements := l.ownedSourcePlacement(
 		args.Config,
 		args.Dir,
 		args.Rel,
 		args.RegularFiles,
+		parts,
 		ownership,
 		allRefs,
 		libraryBackedBinaryFiles,
 	)
 	parts.removeOwned(removableOwnedSources)
+	parts.placeOwnedSources(ownedPlacements)
 	libSrcs := parts.lib
 	testSrcs := parts.test
 	visualLibrarySrcs := parts.visualLibrary
@@ -182,53 +219,66 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		}
 	}
 
-	if len(tsFiles) > 0 {
-		for _, f := range args.RegularFiles {
-			if !isTypeScriptFile(f, cfg) || removableOwnedSources[filepath.ToSlash(f)] {
-				continue
-			}
-			fullPath := filepath.Join(args.Dir, f)
-			refs := allRefs[fullPath]
-			// Bundler-config classification wins over story/test
-			// classification — matches collectSrcs.
-			if idx, ok := matchBundlerConfigSpec(f, cfg); ok {
-				bundlerImportsBySpec[idx] = append(bundlerImportsBySpec[idx], refs.Imports...)
-				bundlerGlobalsBySpec[idx] = append(bundlerGlobalsBySpec[idx], refs.Globals...)
-				continue
-			}
-			if isVisualLibraryFile(f, cfg) {
-				visualLibraryImports = append(visualLibraryImports, refs.Imports...)
-				visualLibraryGlobals = append(visualLibraryGlobals, refs.Globals...)
-				continue
-			}
-			if isTestFile(f, cfg) {
-				testImports = append(testImports, refs.Imports...)
-				testGlobals = append(testGlobals, refs.Globals...)
-			} else {
-				sourceImports = append(sourceImports, refs.Imports...)
-				sourceGlobals = append(sourceGlobals, refs.Globals...)
-			}
+	appendReferences := func(sources []string, imports *[]ImportStatement, globals *[]GlobalReference) {
+		for _, source := range sources {
+			refs := allRefs[filepath.Join(args.Dir, source)]
+			*imports = append(*imports, refs.Imports...)
+			*globals = append(*globals, refs.Globals...)
 		}
+	}
+	appendReferences(libSrcs, &sourceImports, &sourceGlobals)
+	appendReferences(testSrcs, &testImports, &testGlobals)
+	appendReferences(visualLibrarySrcs, &visualLibraryImports, &visualLibraryGlobals)
+	for index, sources := range parts.bundlerConfigs {
+		imports := bundlerImportsBySpec[index]
+		globals := bundlerGlobalsBySpec[index]
+		appendReferences(sources, &imports, &globals)
+		bundlerImportsBySpec[index] = imports
+		bundlerGlobalsBySpec[index] = globals
 	}
 	detectedBinaries := map[string]bool{}
-	for _, source := range libSrcs {
-		if binaryFiles[filepath.ToSlash(source)] || !allRefs[filepath.Join(args.Dir, source)].HasMain {
-			continue
+	reservedSources := make([]string, 0, len(reservedBinaries))
+	for source := range reservedBinaries {
+		reservedSources = append(reservedSources, source)
+	}
+	sort.Strings(reservedSources)
+	if !suppressAutoBinaries {
+		for _, source := range reservedSources {
+			name := reservedBinaries[source]
+			if !allRefs[filepath.Join(args.Dir, source)].HasMain {
+				continue
+			}
+			binaries = append(binaries, binaryRef{
+				kind:       KindTsBinary,
+				name:       name,
+				entryPoint: source,
+				deps:       []string{":" + libName},
+			})
+			detectedBinaries[source] = true
 		}
-		name := binaryNameForSource(source, cfg)
-		if existingNames[name] {
-			continue
+	}
+	if !suppressAutoBinaries {
+		for _, source := range libSrcs {
+			source = filepath.ToSlash(source)
+			if detectedBinaries[source] || binaryFiles[source] || !allRefs[filepath.Join(args.Dir, source)].HasMain {
+				continue
+			}
+			name := binaryNameForSource(source, cfg)
+			if existingNames[name] {
+				continue
+			}
+			binaries = append(binaries, binaryRef{
+				kind:       KindTsBinary,
+				name:       name,
+				entryPoint: source,
+				deps:       []string{":" + libName},
+			})
+			detectedBinaries[filepath.ToSlash(source)] = true
 		}
-		binaries = append(binaries, binaryRef{
-			kind:       KindTsBinary,
-			name:       name,
-			entryPoint: source,
-			deps:       []string{":" + libName},
-		})
-		detectedBinaries[filepath.ToSlash(source)] = true
 	}
 	var staleBinaryNames []string
-	for source, name := range reservedBinaries {
+	for _, source := range reservedSources {
+		name := reservedBinaries[source]
 		if !detectedBinaries[source] {
 			staleBinaryNames = append(staleBinaryNames, name)
 		}
@@ -315,10 +365,10 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			globals = append(globals, refs.Globals...)
 		}
 		r := rule.NewRule(b.kind, b.name)
-		if b.entryPoint != "" {
+		if !b.existing && b.entryPoint != "" {
 			r.SetAttr("entry_point", b.entryPoint)
 		}
-		if len(b.srcs) > 0 {
+		if !b.existing && len(b.srcs) > 0 {
 			r.SetAttr("srcs", b.srcs)
 		}
 		if len(b.deps) > 0 {
@@ -558,6 +608,60 @@ func (p *partitionedSrcs) removeOwned(owned map[string]bool) {
 	p.visualLibrary = withoutOwnedSources(p.visualLibrary, owned)
 	for index, sources := range p.bundlerConfigs {
 		p.bundlerConfigs[index] = withoutOwnedSources(sources, owned)
+	}
+}
+
+func (p partitionedSrcs) sourcePartitions() map[string]sourcePartition {
+	partitions := make(map[string]sourcePartition, len(p.lib)+len(p.test)+len(p.visualLibrary))
+	for _, source := range p.lib {
+		partitions[filepath.ToSlash(source)] = sourcePartition{kind: sourcePartitionLibrary}
+	}
+	for _, source := range p.test {
+		partitions[filepath.ToSlash(source)] = sourcePartition{kind: sourcePartitionTest}
+	}
+	for _, source := range p.visualLibrary {
+		partitions[filepath.ToSlash(source)] = sourcePartition{kind: sourcePartitionVisual}
+	}
+	for index, sources := range p.bundlerConfigs {
+		for _, source := range sources {
+			partitions[filepath.ToSlash(source)] = sourcePartition{
+				kind:         sourcePartitionBundler,
+				bundlerIndex: index,
+			}
+		}
+	}
+	return partitions
+}
+
+func (p *partitionedSrcs) placeOwnedSources(placements map[string]sourcePartition) {
+	if len(placements) == 0 {
+		return
+	}
+	owned := make(map[string]bool, len(placements))
+	for source := range placements {
+		owned[source] = true
+	}
+	p.removeOwned(owned)
+	for source, destination := range placements {
+		switch destination.kind {
+		case sourcePartitionLibrary:
+			p.lib = append(p.lib, source)
+		case sourcePartitionTest:
+			p.test = append(p.test, source)
+		case sourcePartitionVisual:
+			p.visualLibrary = append(p.visualLibrary, source)
+		case sourcePartitionBundler:
+			p.bundlerConfigs[destination.bundlerIndex] = append(
+				p.bundlerConfigs[destination.bundlerIndex],
+				source,
+			)
+		}
+	}
+	sort.Strings(p.lib)
+	sort.Strings(p.test)
+	sort.Strings(p.visualLibrary)
+	for index := range p.bundlerConfigs {
+		sort.Strings(p.bundlerConfigs[index])
 	}
 }
 

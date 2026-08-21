@@ -100,6 +100,10 @@ type tsConfig struct {
 	// ambient type label that provides them.
 	globalResolves map[string]string
 
+	// sourceProviderKinds lists additional hand-written rule kinds whose srcs
+	// compile and provide importable TypeScript modules.
+	sourceProviderKinds map[string]bool
+
 	// bundlerConfigSpecs lists the bundler/tooling config files held out of
 	// the library compilation unit, each with its own emitted target name.
 	// Each spec maps a glob pattern to the Bazel target name to emit; matched
@@ -128,6 +132,7 @@ func newTsConfig() *tsConfig {
 		npmLinkPattern:        defaultNpmLinkPattern,
 		tsconfigTypes:         append([]string(nil), defaultTsconfigTypes...),
 		globalResolves:        map[string]string{},
+		sourceProviderKinds:   map[string]bool{},
 	}
 }
 
@@ -142,8 +147,17 @@ func (c *tsConfig) clone() *tsConfig {
 	cp.testData = append([]string(nil), c.testData...)
 	cp.tsconfigTypes = append([]string(nil), c.tsconfigTypes...)
 	cp.globalResolves = copyStringMap(c.globalResolves)
+	cp.sourceProviderKinds = copyBoolMap(c.sourceProviderKinds)
 	cp.bundlerConfigSpecs = append([]bundlerConfigSpec(nil), c.bundlerConfigSpecs...)
 	return &cp
+}
+
+func copyBoolMap(in map[string]bool) map[string]bool {
+	out := make(map[string]bool, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
 }
 
 func copyStringMap(in map[string]string) map[string]string {

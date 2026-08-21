@@ -58,6 +58,7 @@ func TestApplyDirective_AppendDirectives(t *testing.T) {
 	applyDirective(cfg, rule.Directive{Key: directiveTestData, Value: "//:fixtures"})
 	applyDirective(cfg, rule.Directive{Key: directiveTsconfigTypes, Value: "node react"})
 	applyDirective(cfg, rule.Directive{Key: directiveResolveGlobal, Value: "process //:node_modules/@types/node"})
+	applyDirective(cfg, rule.Directive{Key: directiveSourceProviderKind, Value: "ts_project custom_library"})
 
 	if !contains(cfg.testPatterns, "*.spec.ts") {
 		t.Errorf("testPatterns missing *.spec.ts: %v", cfg.testPatterns)
@@ -76,6 +77,9 @@ func TestApplyDirective_AppendDirectives(t *testing.T) {
 	}
 	if got, want := cfg.globalResolves["process"], "//:node_modules/@types/node"; got != want {
 		t.Errorf("globalResolves[process] = %q, want %q", got, want)
+	}
+	if !cfg.sourceProviderKinds["ts_project"] || !cfg.sourceProviderKinds["custom_library"] {
+		t.Errorf("sourceProviderKinds = %v, want configured kinds", cfg.sourceProviderKinds)
 	}
 
 	// Re-applying the same value should not duplicate.
@@ -118,6 +122,7 @@ func TestClone_Independent(t *testing.T) {
 	parent.visualLibraryPatterns = append(parent.visualLibraryPatterns, "*.stories.tsx")
 	parent.tsconfigTypes = append(parent.tsconfigTypes, "node")
 	parent.globalResolves["process"] = "//:node_modules/@types/node"
+	parent.sourceProviderKinds["ts_project"] = true
 
 	child := parent.clone()
 	child.libraryName = "src"
@@ -125,6 +130,7 @@ func TestClone_Independent(t *testing.T) {
 	child.visualLibraryPatterns = append(child.visualLibraryPatterns, "**/*.storybook.tsx")
 	child.tsconfigTypes = append(child.tsconfigTypes, "react")
 	child.globalResolves["chrome"] = "//:node_modules/@types/chrome"
+	child.sourceProviderKinds["custom_library"] = true
 
 	if parent.libraryName != "lib" {
 		t.Errorf("parent libraryName mutated: %q", parent.libraryName)
@@ -140,6 +146,9 @@ func TestClone_Independent(t *testing.T) {
 	}
 	if _, ok := parent.globalResolves["chrome"]; ok {
 		t.Errorf("parent globalResolves mutated: %v", parent.globalResolves)
+	}
+	if parent.sourceProviderKinds["custom_library"] {
+		t.Errorf("parent sourceProviderKinds mutated: %v", parent.sourceProviderKinds)
 	}
 }
 

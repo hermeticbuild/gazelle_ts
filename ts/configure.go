@@ -27,6 +27,7 @@ const (
 	directiveTestData             = "ts_test_data"
 	directiveTsconfigTypes        = "ts_tsconfig_types"
 	directiveResolveGlobal        = "ts_resolve_global"
+	directiveSourceProviderKind   = "ts_source_provider_kind"
 	directiveBundlerConfigPattern = "ts_bundler_config_pattern"
 )
 
@@ -52,6 +53,7 @@ func (l *tsLang) KnownDirectives() []string {
 		directiveTestData,
 		directiveTsconfigTypes,
 		directiveResolveGlobal,
+		directiveSourceProviderKind,
 		directiveBundlerConfigPattern,
 	}
 }
@@ -131,6 +133,10 @@ func applyDirective(cfg *tsConfig, d rule.Directive) {
 			return
 		}
 		cfg.globalResolves[fields[0]] = fields[1]
+	case directiveSourceProviderKind:
+		for _, kind := range splitFields(val) {
+			cfg.sourceProviderKinds[kind] = true
+		}
 	case directiveBundlerConfigPattern:
 		// Format: `<glob> <name>`, e.g. `vite.config.* vite_config`. The
 		// glob is matched against package-relative file paths; <name> is
