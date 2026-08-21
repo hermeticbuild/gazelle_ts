@@ -7,7 +7,6 @@ import (
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/rule"
-	"github.com/bazelbuild/buildtools/build"
 )
 
 type sourceOwnership struct {
@@ -64,15 +63,6 @@ func existingRuleSourceOwnership(
 			compiles := !generated && sourceAttrProvidesCompilation(c, r, attr)
 			provides := !generated && attr == "srcs" && kindMatches(c, r.Kind(), KindTsLibrary)
 			sources := localSourcesFromAttr(r, attr, available)
-			if attr == "data" {
-				sources = localExplicitSourcesFromAttr(r, attr, available)
-			}
-			if attr == "srcs" && !compiles {
-				// Non-compiling rules often glob an entire source tree for runtime
-				// packaging or source-scanning tests. Broad globs do not establish
-				// compile ownership; explicit sources and narrow resource globs do.
-				sources = localResourceSourcesFromAttr(r, attr, available)
-			}
 			for _, source := range sources {
 				if isTypeScriptFile(source, cfg) {
 					ownership.claimed[source] = true
@@ -257,104 +247,19 @@ func (l *tsLang) localImportedSource(c *config.Config, index localSourceIndex, i
 }
 
 func localSourcesFromAttr(r *rule.Rule, attr string, available map[string]bool) []string {
-	return localSourcesFromAttrWithGlobExpansion(r, attr, available, globExpansionAll)
-}
-
-func localExplicitSourcesFromAttr(r *rule.Rule, attr string, available map[string]bool) []string {
-	return localSourcesFromAttrWithGlobExpansion(r, attr, available, globExpansionNone)
-}
-
-func localResourceSourcesFromAttr(r *rule.Rule, attr string, available map[string]bool) []string {
-	return localSourcesFromAttrWithGlobExpansion(r, attr, available, globExpansionNarrow)
-}
-
-type globExpansion int
-
-const (
-	globExpansionNone globExpansion = iota
-	globExpansionNarrow
-	globExpansionAll
-)
-
-func localSourcesFromAttrWithGlobExpansion(
-	r *rule.Rule,
-	attr string,
-	available map[string]bool,
-	expandGlobs globExpansion,
-) []string {
 	seen := map[string]bool{}
 	var sources []string
-	add := func(source string) {
+	candidates := append([]string{r.AttrString(attr)}, r.AttrStrings(attr)...)
+	for _, source := range candidates {
 		source = normalizeLocalSource(source)
 		if !available[source] || seen[source] {
-			return
+			continue
 		}
 		seen[source] = true
 		sources = append(sources, source)
 	}
-
-	collectLocalSources(r.Attr(attr), available, expandGlobs, add)
 	sort.Strings(sources)
 	return sources
-}
-
-func collectLocalSources(expr build.Expr, available map[string]bool, expandGlobs globExpansion, add func(string)) {
-	if expr == nil {
-		return
-	}
-	if glob, ok := rule.ParseGlobExpr(expr); ok {
-		if expandGlobs == globExpansionNone || (expandGlobs == globExpansionNarrow && hasBroadSourcePattern(glob.Patterns)) {
-			return
-		}
-		for source := range available {
-			if matchesSourceGlob(source, glob.Patterns, glob.Excludes) {
-				add(source)
-			}
-		}
-		return
-	}
-
-	switch expr := expr.(type) {
-	case *build.StringExpr:
-		add(expr.Value)
-	case *build.ListExpr:
-		for _, item := range expr.List {
-			collectLocalSources(item, available, expandGlobs, add)
-		}
-	case *build.BinaryExpr:
-		if expr.Op != "+" {
-			return
-		}
-		collectLocalSources(expr.X, available, expandGlobs, add)
-		collectLocalSources(expr.Y, available, expandGlobs, add)
-	case *build.CallExpr:
-		callee, ok := expr.X.(*build.Ident)
-		if !ok || callee.Name != "select" {
-			return
-		}
-		for _, arg := range expr.List {
-			collectLocalSources(arg, available, expandGlobs, add)
-		}
-	case *build.DictExpr:
-		for _, item := range expr.List {
-			collectLocalSources(item.Value, available, expandGlobs, add)
-		}
-	case *build.KeyValueExpr:
-		collectLocalSources(expr.Value, available, expandGlobs, add)
-	}
-}
-
-func hasBroadSourcePattern(patterns []string) bool {
-	for _, pattern := range patterns {
-		base := filepath.Base(filepath.ToSlash(pattern))
-		if base == "*" || base == "**" || base == "*.ts*" || base == "*.js*" {
-			return true
-		}
-		if strings.HasPrefix(base, "*.") && strings.Count(base, ".") == 1 {
-			return true
-		}
-	}
-	return false
 }
 
 func normalizeLocalSource(source string) string {
@@ -365,18 +270,4 @@ func normalizeLocalSource(source string) string {
 	source = strings.TrimPrefix(source, ":")
 	source = strings.TrimPrefix(source, "./")
 	return source
-}
-
-func matchesSourceGlob(source string, patterns []string, excludes []string) bool {
-	for _, exclude := range excludes {
-		if matchPathPattern(exclude, source) {
-			return false
-		}
-	}
-	for _, pattern := range patterns {
-		if matchPathPattern(pattern, source) {
-			return true
-		}
-	}
-	return false
 }

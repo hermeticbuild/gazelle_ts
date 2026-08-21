@@ -4,12 +4,12 @@ go 1.24.12
 
 require (
 	github.com/bazelbuild/bazel-gazelle v0.50.0
-	github.com/bazelbuild/buildtools v0.0.0-20250930140053-2eb4fccefb52
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	google.golang.org/protobuf v1.36.10
 )
 
 require (
+	github.com/bazelbuild/buildtools v0.0.0-20250930140053-2eb4fccefb52 // indirect
 	github.com/bazelbuild/rules_go v0.60.0 // indirect
 	golang.org/x/mod v0.25.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect

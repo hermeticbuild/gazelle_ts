@@ -12,12 +12,19 @@ func TestExistingRuleSourceOwnership_ClassifiesCompileAndResourceOwners(t *testi
 	file, err := rule.LoadData("BUILD.bazel", "pkg", []byte(`
 custom_devserver(
     name = "dev",
-    data = glob(["**/*.ts"]) + ["runtime.ts"],
+    srcs = glob(["**/*.ts"]),
 )
 
 filegroup(
-    name = "scanner",
-    srcs = glob(["**/*.ts"]) + ["standalone.template.ts"],
+    name = "selected_resources",
+    srcs = select({
+        "//conditions:default": ["selected.resource.ts"],
+    }),
+)
+
+filegroup(
+    name = "literal_resources",
+    srcs = ["literal.resource.ts"],
 )
 
 ts_library(
@@ -38,16 +45,16 @@ ts_library(
 		config.New(),
 		file,
 		newTsConfig(),
-		[]string{"generated.resource.ts", "index.ts", "runtime.ts", "split.ts", "standalone.template.ts"},
+		[]string{"generated.resource.ts", "index.ts", "literal.resource.ts", "selected.resource.ts", "split.ts"},
 		"pkg",
 		"pkg_test",
 		"pkg_visual_library",
 	)
 
 	wantClaimed := map[string]bool{
-		"generated.resource.ts":  true,
-		"split.ts":               true,
-		"standalone.template.ts": true,
+		"generated.resource.ts": true,
+		"literal.resource.ts":   true,
+		"split.ts":              true,
 	}
 	if !reflect.DeepEqual(ownership.claimed, wantClaimed) {
 		t.Fatalf("claimed sources = %v, want %v", ownership.claimed, wantClaimed)
@@ -102,35 +109,39 @@ func TestRemovableOwnedSources_PreservesImportsAndLibraryBackedBinaryEntrypoints
 	}
 }
 
-func TestLocalSourcesFromAttr_CompositeExpressions(t *testing.T) {
+func TestLocalSourcesFromAttr_IgnoresComputedExpressions(t *testing.T) {
 	file, err := rule.LoadData("BUILD.bazel", "pkg", []byte(`
 filegroup(
-    name = "resources",
-    srcs = [":literal.ts"] + glob(
-        ["*.template.ts"],
-        exclude = ["excluded.template.ts"],
-    ) + select({
-        "//conditions:default": ["./selected.ts"],
-        ":alternate": ["conditional.ts"],
+    name = "globbed",
+    srcs = glob(["*.template.ts"]),
+)
+
+filegroup(
+    name = "selected",
+    srcs = select({
+        "//conditions:default": ["selected.ts"],
     }),
+)
+
+filegroup(
+    name = "concatenated",
+    srcs = ["literal.ts"] + ["additional.ts"],
 )
 `))
 	if err != nil {
 		t.Fatal(err)
 	}
 	available := map[string]bool{
-		"conditional.ts":       true,
-		"excluded.template.ts": true,
-		"literal.ts":           true,
-		"owned.template.ts":    true,
-		"selected.ts":          true,
-		"unrelated.ts":         true,
+		"additional.ts":     true,
+		"literal.ts":        true,
+		"owned.template.ts": true,
+		"selected.ts":       true,
 	}
 
-	got := localSourcesFromAttr(file.Rules[0], "srcs", available)
-	want := []string{"conditional.ts", "literal.ts", "owned.template.ts", "selected.ts"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("local sources = %v, want %v", got, want)
+	for _, r := range file.Rules {
+		if got := localSourcesFromAttr(r, "srcs", available); len(got) != 0 {
+			t.Errorf("%s sources = %v, want computed expression left unmanaged", r.Name(), got)
+		}
 	}
 }
 
