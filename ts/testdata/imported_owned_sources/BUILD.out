@@ -28,8 +28,8 @@ ts_library(
     srcs = [
         "app.ts",
         "cli.ts",
-        "helper.test.ts",
         "resource.ts",
+        "unused.template.ts",
     ],
     visibility = ["//visibility:public"],
     deps = [":split"],
@@ -37,6 +37,10 @@ ts_library(
 
 ts_test(
     name = "test",
-    srcs = ["app.test.ts"],
+    srcs = [
+        "app.test.ts",
+        "helper.test.ts",
+        "setup.ts",
+    ],
     deps = [":lib"],
 )

@@ -307,25 +307,52 @@ func TestCollectSrcs(t *testing.T) {
 	}
 }
 
-func TestExistingRuleOwnedSources(t *testing.T) {
+func TestExistingCompilationOwnedSources(t *testing.T) {
 	cfg := newTsConfig()
 	c := config.New()
+	c.KindMap = map[string]config.MappedKind{
+		KindTsLibrary: {
+			FromKind: KindTsLibrary,
+			KindName: "custom_ts_library",
+		},
+	}
 	binary := rule.NewRule(KindTsBinary, "cli")
 	binary.SetAttr("entry_point", "main.ts")
-	customTest := rule.NewRule("js_test", "custom_test")
-	customTest.SetAttr("entry_point", "owned.test.ts")
+	runtimeTest := rule.NewRule("js_test", "runtime_test")
+	runtimeTest.SetAttr("entry_point", "runtime.test.ts")
 	resource := rule.NewRule("filegroup", "templates")
 	resource.SetAttr("srcs", []string{"template.ts"})
-	resource.SetAttr("data", []string{"runtime.ts"})
+	explicitLibrary := rule.NewRule(KindTsLibrary, "split")
+	explicitLibrary.SetAttr("srcs", []string{"split.ts"})
+	mappedLibrary := rule.NewRule("custom_ts_library", "mapped")
+	mappedLibrary.SetAttr("srcs", []string{"mapped.ts"})
+	explicitTest := rule.NewRule(KindTsTest, "custom_test")
+	explicitTest.SetAttr("srcs", []string{"owned.test.ts"})
 	generated := rule.NewRule(KindTsLibrary, "pkg")
 	generated.SetAttr("srcs", []string{"library.ts"})
-	file := &rule.File{Rules: []*rule.Rule{binary, customTest, resource, generated}}
+	file := &rule.File{Rules: []*rule.Rule{
+		binary,
+		runtimeTest,
+		resource,
+		explicitLibrary,
+		mappedLibrary,
+		explicitTest,
+		generated,
+	}}
 
-	ownership := existingRuleSourceOwnership(
+	owned := existingCompilationOwnedSources(
 		c,
 		file,
 		cfg,
-		[]string{"main.ts", "owned.test.ts", "template.ts", "runtime.ts", "library.ts"},
+		[]string{
+			"library.ts",
+			"main.ts",
+			"mapped.ts",
+			"owned.test.ts",
+			"runtime.test.ts",
+			"split.ts",
+			"template.ts",
+		},
 		"pkg",
 		"pkg_test",
 		"pkg_visual_library",
@@ -333,21 +360,15 @@ func TestExistingRuleOwnedSources(t *testing.T) {
 
 	want := map[string]bool{
 		"owned.test.ts": true,
-		"template.ts":   true,
+		"mapped.ts":     true,
+		"split.ts":      true,
 	}
-	if !reflect.DeepEqual(ownership.claimed, want) {
-		t.Fatalf("owned sources = %v, want %v", ownership.claimed, want)
-	}
-	wantCompileRoots := map[string]bool{"owned.test.ts": true}
-	if !reflect.DeepEqual(ownership.compileRoots, wantCompileRoots) {
-		t.Fatalf("compile roots = %v, want %v", ownership.compileRoots, wantCompileRoots)
-	}
-	if len(ownership.providers) != 0 {
-		t.Fatalf("providers = %v, want empty", ownership.providers)
+	if !reflect.DeepEqual(owned, want) {
+		t.Fatalf("owned sources = %v, want %v", owned, want)
 	}
 }
 
-func TestLocalSourcesFromAttr(t *testing.T) {
+func TestLocalSourcesFromListAttr(t *testing.T) {
 	file, err := rule.LoadData("BUILD.bazel", "pkg", []byte(`
 filegroup(
     name = "resources",
@@ -369,7 +390,7 @@ filegroup(
 		"unrelated.ts": true,
 	}
 
-	got, ok := localSourcesFromAttr(file.Rules[0], "srcs", available)
+	got, ok := localSourcesFromListAttr(file.Rules[0], "srcs", available)
 	want := []string{"literal.ts", "selected.ts"}
 	if !ok || !reflect.DeepEqual(got, want) {
 		t.Fatalf("local sources = %v, %v; want %v, true", got, ok, want)
@@ -402,34 +423,6 @@ func TestPartitionedSrcsRemoveOwned(t *testing.T) {
 		t.Errorf("visual sources = %v, want %v", got, want)
 	}
 	if got, want := parts.bundlerConfigs[0], []string{"visible.config.ts"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("bundler sources = %v, want %v", got, want)
-	}
-}
-
-func TestPartitionedSrcsPlaceOwnedSources(t *testing.T) {
-	parts := partitionedSrcs{
-		lib:           []string{"app.ts"},
-		test:          []string{"helper.test.ts"},
-		visualLibrary: []string{"Button.story.tsx"},
-		bundlerConfigs: map[int][]string{
-			0: {"vite.config.ts"},
-		},
-	}
-	parts.placeOwnedSources(map[string]sourcePartition{
-		"helper.test.ts": {kind: sourcePartitionLibrary},
-		"Button.story.tsx": {
-			kind:         sourcePartitionBundler,
-			bundlerIndex: 0,
-		},
-	})
-
-	if got, want := parts.lib, []string{"app.ts", "helper.test.ts"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("library sources = %v, want %v", got, want)
-	}
-	if len(parts.test) != 0 || len(parts.visualLibrary) != 0 {
-		t.Errorf("old partitions retain moved sources: test=%v visual=%v", parts.test, parts.visualLibrary)
-	}
-	if got, want := parts.bundlerConfigs[0], []string{"Button.story.tsx", "vite.config.ts"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("bundler sources = %v, want %v", got, want)
 	}
 }

@@ -28,6 +28,12 @@ ts_binary(
     deps = ["//manual:dep"],
 )
 
+ts_binary(
+    name = "main_bin",
+    entry_point = "main.ts",
+    deps = [":lib"],
+)
+
 ts_library(
     name = "lib",
     srcs = [

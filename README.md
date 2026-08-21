@@ -258,29 +258,20 @@ stale rules disappear when `main` changes. An existing `ts_binary` or
 `js_binary` claiming that file wins. Existing `ts_binary` rules also depend on
 the sibling library, which emits their runtime import closure.
 
-Hand-written rules also keep package-local TypeScript sources named by
-literal `entry_point` or `srcs` attributes. Every element of a source list
-must be literal; a list containing a computed element is left unmanaged in
-full for dependency rewriting. Direct literal files in such a list still
-reserve ownership for non-binary rules, and compilation rules publish exact
-source-level import specs. For managed binaries, direct literal files reserve
-automatic binary names while the sibling library continues to own compilation.
-Computed expressions,
-including `glob()` and `select()`, remain unmanaged; use an explicit owner or
-Gazelle exclusion when generated targets would otherwise overlap them.
-An opaque binary source expression conservatively disables automatic main
-entrypoint detection for that package without affecting library generation.
-Explicit TypeScript libraries remain the canonical providers for their
-sources, including when generated code imports them.
+Hand-written TypeScript compilation rules also keep package-local sources named
+directly in `srcs`. Canonical rules and rules configured through `map_kind` are
+compilation owners; resource-only rules such as `filegroup` do not remove their
+TypeScript-shaped files from generated compilation targets. Explicit
+TypeScript libraries publish exact source-level import specs so split targets
+remain canonical providers for their sources.
 
-Resource rules may own explicitly listed files. If generated code imports one
-of those TypeScript files, Gazelle moves it into the importing compilation
-partition so the import has a provider. Unused resource files remain excluded.
-Additional hand-written compilation rules opt in with
-`ts_source_provider_kind`; their exact literal sources remain exclusive and are
-indexed as import providers. Managed binaries retain their existing split:
-`ts_binary` may execute through the sibling library, while `js_binary` keeps
-direct source and runtime dependency resolution.
+Gazelle inspects only direct string values in source attributes. It does not
+evaluate `glob()`, `select()`, concatenation, or identifiers. For managed
+binaries, directly visible source files reserve their automatic binary names,
+while an opaque binary remains unchanged and does not suppress unrelated
+automatic binaries. Use an explicit compilation owner or `# gazelle:exclude`
+when an entirely computed source expression would otherwise overlap generated
+targets.
 
 ## Supported Directives
 
@@ -302,7 +293,6 @@ directory overrides or appends to them.
 | `ts_test_data` | empty | Append a label to every generated test rule's `data`. |
 | `ts_tsconfig_types` | `node` | Append ambient type names that may be emitted in `tsconfig_types` when imported `@types/*` deps are resolved. This is an allowlist, not a list of every type dep; `ts_resolve_global` providers infer their own type names. |
 | `ts_resolve_global` | empty | Add a `<global> <label>` mapping. Referencing the global adds the label to `deps` and infers a `tsconfig_types` entry. Longest matching global prefix wins. |
-| `ts_source_provider_kind` | empty | Add a hand-written rule kind whose literal `srcs` compile and provide importable TypeScript modules. Multiple space-separated kinds may be added and inherit into subdirectories. Prefer `map_kind` when the rule implements the generated `ts_library` abstraction. |
 | `ts_bundler_config_pattern` | empty | Add a `<glob> <name>` mapping. Matching files are removed from library/test srcs and emitted as `ts_bundler_config(name = <name>)`. |
 
 Useful Gazelle directives alongside `gazelle_ts`:
@@ -482,7 +472,7 @@ runs.
 
 | Attr | Kind | Behavior |
 |---|---|---|
-| `entry_point` / `srcs` | both | Generated binaries get `entry_point`; Gazelle manages a hand-written binary only when every present source attribute is fully literal. |
+| `entry_point` / `srcs` | both | Generated binaries get `entry_point`; opaque hand-written attributes remain unchanged, and directly visible files reserve automatic binary names. |
 | `deps` | `ts_binary` | Binaries depend on their sibling `ts_library`. |
 | `data` | both | `ts_binary` keeps explicit `# keep` runtime files; `js_binary` gets resolved imports. |
 | `tsconfig_types` | `ts_binary` only | Inferred ambient type names. |

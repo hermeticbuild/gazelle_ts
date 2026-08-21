@@ -26,18 +26,14 @@ import (
 //
 // Test rules don't export reusable modules, so they don't appear in the index.
 func (l *tsLang) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resolve.ImportSpec {
-	isLibrary := kindMatches(c, r.Kind(), KindTsLibrary)
-	if !isLibrary && !sourceRuleProvidesImports(c, r) {
+	if !kindMatches(c, r.Kind(), KindTsLibrary) {
 		return nil
 	}
 
 	pkg := f.Pkg
-	var specs []resolve.ImportSpec
-	if isLibrary {
-		specs = []resolve.ImportSpec{
-			{Lang: languageName, Imp: pkg},
-			{Lang: languageName, Imp: pkg + "/*"},
-		}
+	specs := []resolve.ImportSpec{
+		{Lang: languageName, Imp: pkg},
+		{Lang: languageName, Imp: pkg + "/*"},
 	}
 	srcs, _ := literalStringListAttr(r, "srcs")
 	specs = append(specs, importSpecsForLiteralSrcs(c, f, pkg, srcs)...)
@@ -85,6 +81,9 @@ func packageLiteralImportPaths(c *config.Config, file *rule.File, pkg string) ma
 		return paths
 	}
 	for _, r := range file.Rules {
+		if !kindMatches(c, r.Kind(), KindTsLibrary) {
+			continue
+		}
 		srcs, _ := literalStringListAttr(r, "srcs")
 		for _, src := range srcs {
 			if importPath, ok := importPathForSrc(c, pkg, src); ok {

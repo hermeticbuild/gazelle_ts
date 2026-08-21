@@ -92,31 +92,11 @@ ts_library(
 	}
 }
 
-func TestImportsIndexesConfiguredCompilationOwnersByExactSource(t *testing.T) {
+func TestImportsIndexesLibraryIndexAlias(t *testing.T) {
 	c := config.New()
-	c.Exts[languageName] = &tsConfig{
-		extensions:          []string{".ts"},
-		sourceProviderKinds: map[string]bool{"ts_project": true},
-	}
-	r := rule.NewRule("ts_project", "project")
-	r.SetAttr("srcs", []string{"project.ts"})
-	f := &rule.File{Pkg: "workspace/frontend"}
-
-	got := (&tsLang{}).Imports(c, r, f)
-	want := []resolve.ImportSpec{{Lang: languageName, Imp: "workspace/frontend/project"}}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("Imports() = %v, want %v", got, want)
-	}
-}
-
-func TestImportsIndexesConfiguredProviderIndexAlias(t *testing.T) {
-	c := config.New()
-	c.Exts[languageName] = &tsConfig{
-		extensions:          []string{".ts"},
-		sourceProviderKinds: map[string]bool{"ts_project": true},
-	}
+	c.Exts[languageName] = &tsConfig{extensions: []string{".ts"}}
 	file, err := rule.LoadData("BUILD.bazel", "pkg", []byte(`
-ts_project(
+ts_library(
     name = "feature",
     srcs = ["feature/index.ts"],
 )
@@ -127,6 +107,8 @@ ts_project(
 
 	got := (&tsLang{}).Imports(c, file.Rules[0], file)
 	want := []resolve.ImportSpec{
+		{Lang: languageName, Imp: "pkg"},
+		{Lang: languageName, Imp: "pkg/*"},
 		{Lang: languageName, Imp: "pkg/feature"},
 		{Lang: languageName, Imp: "pkg/feature/index"},
 	}
@@ -137,12 +119,9 @@ ts_project(
 
 func TestImportsPrefersExactSourceOverIndexAlias(t *testing.T) {
 	c := config.New()
-	c.Exts[languageName] = &tsConfig{
-		extensions:          []string{".ts"},
-		sourceProviderKinds: map[string]bool{"ts_project": true},
-	}
+	c.Exts[languageName] = &tsConfig{extensions: []string{".ts"}}
 	file, err := rule.LoadData("BUILD.bazel", "pkg", []byte(`
-ts_project(
+ts_library(
     name = "feature_index",
     srcs = ["feature/index.ts"],
 )
@@ -157,7 +136,11 @@ ts_library(
 	}
 
 	got := (&tsLang{}).Imports(c, file.Rules[0], file)
-	want := []resolve.ImportSpec{{Lang: languageName, Imp: "pkg/feature/index"}}
+	want := []resolve.ImportSpec{
+		{Lang: languageName, Imp: "pkg"},
+		{Lang: languageName, Imp: "pkg/*"},
+		{Lang: languageName, Imp: "pkg/feature/index"},
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Imports() = %v, want exact feature.ts to suppress the index alias %v", got, want)
 	}
@@ -165,7 +148,7 @@ ts_library(
 
 func TestImportsDoesNotIndexUnconfiguredSourceRules(t *testing.T) {
 	c := config.New()
-	c.Exts[languageName] = &tsConfig{extensions: []string{".ts"}, sourceProviderKinds: map[string]bool{}}
+	c.Exts[languageName] = &tsConfig{extensions: []string{".ts"}}
 	r := rule.NewRule("pkg_tar", "archive")
 	r.SetAttr("srcs", []string{"resource.ts"})
 
