@@ -1,6 +1,7 @@
 package ts
 
 import (
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -34,13 +35,15 @@ func (l *tsLang) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resolve
 		{Lang: languageName, Imp: pkg},
 		{Lang: languageName, Imp: pkg + "/*"},
 	}
-	specs = append(specs, importSpecsForLiteralSrcs(c, pkg, r.AttrStrings("srcs"))...)
+	srcs, _ := literalStringListAttr(r, "srcs")
+	specs = append(specs, importSpecsForLiteralSrcs(c, f, pkg, srcs)...)
 	return specs
 }
 
-func importSpecsForLiteralSrcs(c *config.Config, pkg string, srcs []string) []resolve.ImportSpec {
-	seen := make(map[string]bool, len(srcs))
-	imports := make([]string, 0, len(srcs))
+func importSpecsForLiteralSrcs(c *config.Config, file *rule.File, pkg string, srcs []string) []resolve.ImportSpec {
+	exact := packageLiteralImportPaths(c, file, pkg)
+	seen := make(map[string]bool, len(srcs)*2)
+	imports := make([]string, 0, len(srcs)*2)
 	for _, src := range srcs {
 		if isNonSourceSrc(src) {
 			continue
@@ -52,6 +55,17 @@ func importSpecsForLiteralSrcs(c *config.Config, pkg string, srcs []string) []re
 		seen[importPath] = true
 		imports = append(imports, importPath)
 	}
+	for _, importPath := range append([]string(nil), imports...) {
+		if !strings.HasSuffix(importPath, "/index") {
+			continue
+		}
+		alias := strings.TrimSuffix(importPath, "/index")
+		if alias == "" || seen[alias] || exact[alias] || packageSourceExistsForImportPath(c, pkg, alias) {
+			continue
+		}
+		seen[alias] = true
+		imports = append(imports, alias)
+	}
 	sort.Strings(imports)
 
 	specs := make([]resolve.ImportSpec, 0, len(imports))
@@ -61,11 +75,52 @@ func importSpecsForLiteralSrcs(c *config.Config, pkg string, srcs []string) []re
 	return specs
 }
 
+func packageLiteralImportPaths(c *config.Config, file *rule.File, pkg string) map[string]bool {
+	paths := map[string]bool{}
+	if file == nil {
+		return paths
+	}
+	for _, r := range file.Rules {
+		if !kindMatches(c, r.Kind(), KindTsLibrary) {
+			continue
+		}
+		srcs, _ := literalStringListAttr(r, "srcs")
+		for _, src := range srcs {
+			if importPath, ok := importPathForSrc(c, pkg, src); ok {
+				paths[importPath] = true
+			}
+		}
+	}
+	return paths
+}
+
+func packageSourceExistsForImportPath(c *config.Config, pkg, importPath string) bool {
+	if c == nil || c.RepoRoot == "" {
+		return false
+	}
+	relative := importPath
+	if pkg != "" {
+		prefix := pkg + "/"
+		if !strings.HasPrefix(importPath, prefix) {
+			return false
+		}
+		relative = strings.TrimPrefix(importPath, prefix)
+	}
+	for _, extension := range importSpecSourceExtensions(c) {
+		candidate := filepath.Join(c.RepoRoot, filepath.FromSlash(pkg), filepath.FromSlash(relative+extension))
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
 func importPathForSrc(c *config.Config, pkg, src string) (string, bool) {
-	cleanSrc := filepath.ToSlash(filepath.Clean(src))
-	cleanSrc = strings.TrimPrefix(cleanSrc, "./")
-	cleanSrc = strings.TrimPrefix(cleanSrc, ":")
-	if cleanSrc == "" || cleanSrc == "." || strings.HasPrefix(cleanSrc, "../") {
+	if isNonSourceSrc(src) {
+		return "", false
+	}
+	cleanSrc := normalizeLocalSource(src)
+	if cleanSrc == "" {
 		return "", false
 	}
 	for _, ext := range importSpecSourceExtensions(c) {

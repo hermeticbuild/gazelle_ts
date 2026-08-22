@@ -1,9 +1,9 @@
-load("@gazelle_ts//ts:defs.bzl", "ts_library", "ts_test", "ts_visual_library")
+load("@gazelle_ts//ts:defs.bzl", "ts_bundler_config", "ts_library", "ts_test", "ts_visual_library")
 
 # gazelle:ts_bundler_config_pattern vite.config.ts vite_config
 
 filegroup(
-    name = "owned",
+    name = "resources",
     srcs = [
         "owned.story.tsx",
         "owned.template.ts",
@@ -17,6 +17,8 @@ ts_library(
     name = "lib",
     srcs = [
         "excluded.template.ts",
+        "owned.template.ts",
+        "owned.ts",
         "visible.ts",
     ],
     visibility = ["//visibility:public"],
@@ -24,13 +26,25 @@ ts_library(
 
 ts_test(
     name = "test",
-    srcs = ["visible.test.ts"],
+    srcs = [
+        "owned.test.ts",
+        "visible.test.ts",
+    ],
     deps = [":lib"],
 )
 
 ts_visual_library(
     name = "visual_library",
-    srcs = ["visible.story.tsx"],
+    srcs = [
+        "owned.story.tsx",
+        "visible.story.tsx",
+    ],
     visibility = ["//visibility:public"],
     deps = [":lib"],
+)
+
+ts_bundler_config(
+    name = "vite_config",
+    srcs = ["vite.config.ts"],
+    visibility = ["//visibility:public"],
 )

@@ -31,6 +31,7 @@ go_library(
         "language.go",
         "parser.go",
         "resolve.go",
+        "source_ownership.go",
     ],
     # Link the Rust rlib via cgo so transitive Rust crates remain dedupable.
     cdeps = ["//crates/import_extractor:import_extractor"],
@@ -51,6 +52,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//ts/proto:import_extractor_go_proto",
+        "@com_github_bazelbuild_buildtools//build",
         "@com_github_bmatcuk_doublestar_v4//:doublestar",
         "@gazelle//config",
         "@gazelle//label",
@@ -69,6 +71,7 @@ go_test(
         "generate_test.go",
         "imports_test.go",
         "resolve_test.go",
+        "source_ownership_test.go",
     ],
     # Mirror the go_library's runtime linkopts; go_test relinks the cgo'd rlib.
     clinkopts = select({

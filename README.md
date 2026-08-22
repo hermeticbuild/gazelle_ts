@@ -258,10 +258,20 @@ stale rules disappear when `main` changes. An existing `ts_binary` or
 `js_binary` claiming that file wins. Existing `ts_binary` rules also depend on
 the sibling library, which emits their runtime import closure.
 
-Hand-written rules also keep package-local TypeScript sources named by
-literal `entry_point` or `srcs` attributes. Gazelle excludes those files from
-generated library, test, visual, and bundler rules. Binary entrypoints stay in
-the package library. Use `# gazelle:exclude` for computed source expressions.
+Hand-written TypeScript compilation rules also keep package-local sources named
+directly in `srcs`. Canonical rules and rules configured through `map_kind` are
+compilation owners; resource-only rules such as `filegroup` do not remove their
+TypeScript-shaped files from generated compilation targets. Explicit
+TypeScript libraries publish exact source-level import specs so split targets
+remain canonical providers for their sources.
+
+Gazelle inspects only direct string values in source attributes. It does not
+evaluate `glob()`, `select()`, concatenation, or identifiers. For managed
+binaries, directly visible source files reserve their automatic binary names,
+while an opaque binary remains unchanged and does not suppress unrelated
+automatic binaries. Use an explicit compilation owner or `# gazelle:exclude`
+when an entirely computed source expression would otherwise overlap generated
+targets.
 
 ## Supported Directives
 
@@ -462,7 +472,7 @@ runs.
 
 | Attr | Kind | Behavior |
 |---|---|---|
-| `entry_point` / `srcs` | both | Generated binaries get `entry_point`; hand-written expressions stay user-owned while Gazelle scans literal values. |
+| `entry_point` / `srcs` | both | Generated binaries get `entry_point`; opaque hand-written attributes remain unchanged, and directly visible files reserve automatic binary names. |
 | `deps` | `ts_binary` | Binaries depend on their sibling `ts_library`. |
 | `data` | both | `ts_binary` keeps explicit `# keep` runtime files; `js_binary` gets resolved imports. |
 | `tsconfig_types` | `ts_binary` only | Inferred ambient type names. |

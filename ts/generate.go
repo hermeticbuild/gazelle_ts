@@ -2,6 +2,7 @@ package ts
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -56,7 +57,18 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	libName, testName, visualLibraryName := resolveRuleNames(cfg, args.Rel)
 	libName = existingLibraryName(args.Config, args.File, cfg, libName)
 	parts := collectSrcs(args.RegularFiles, cfg)
-	ownedSources := existingRuleOwnedSources(
+	availableSources := make(map[string]bool, len(args.RegularFiles))
+	for _, source := range args.RegularFiles {
+		availableSources[filepath.ToSlash(source)] = true
+	}
+	sourceExists := func(source string) bool {
+		if availableSources[source] {
+			return true
+		}
+		info, err := os.Stat(filepath.Join(args.Dir, filepath.FromSlash(source)))
+		return err == nil && !info.IsDir()
+	}
+	ownedSources := existingCompilationOwnedSources(
 		args.Config,
 		args.File,
 		cfg,
@@ -87,6 +99,7 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 	type binaryRef struct {
 		kind       string
 		name       string
+		existing   bool
 		files      []string // package-relative TS files whose imports need direct resolution
 		entryPoint string
 		srcs       []string
@@ -115,19 +128,42 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 				continue
 			}
 			ref := binaryRef{
-				kind: canonical,
-				name: r.Name(),
+				kind:     canonical,
+				name:     r.Name(),
+				existing: true,
 			}
-			entryPoint := r.AttrString("entry_point")
-			srcs := r.AttrStrings("srcs")
-			if canonical == KindTsBinary && binaryEntryPointInLibrary(entryPoint, srcs, librarySources) {
+			entryPoint, entryPointIsLiteral := literalStringAttr(r, "entry_point")
+			srcs, srcsAreLiteral := literalStringListAttr(r, "srcs")
+			if !entryPointIsLiteral || !srcsAreLiteral {
+				knownSources := append([]string(nil), srcs...)
+				if entryPointIsLiteral {
+					knownSources = append(knownSources, entryPoint)
+				}
+				for _, source := range knownSources {
+					source = normalizeLocalSource(source)
+					if sourceExists(source) && isTypeScriptFile(source, cfg) {
+						binaryFiles[source] = true
+					}
+				}
+				continue
+			}
+			ref.entryPoint = normalizeLocalSource(entryPoint)
+			for _, source := range srcs {
+				source = normalizeLocalSource(source)
+				if sourceExists(source) && isTypeScriptFile(source, cfg) {
+					ref.srcs = append(ref.srcs, source)
+				}
+			}
+			if canonical == KindTsBinary && binaryEntryPointInLibrary(ref.entryPoint, ref.srcs, librarySources) {
 				ref.deps = []string{":" + libName}
 			}
-			candidates := append([]string{entryPoint}, srcs...)
+			candidates := append([]string{ref.entryPoint}, ref.srcs...)
+			refFiles := map[string]bool{}
 			for _, c := range candidates {
-				if c == "" || !isTypeScriptFile(c, cfg) {
+				if !sourceExists(c) || !isTypeScriptFile(c, cfg) || refFiles[c] {
 					continue
 				}
+				refFiles[c] = true
 				ref.files = append(ref.files, c)
 				full := filepath.Join(args.Dir, c)
 				if !seen[full] {
@@ -145,7 +181,8 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 					continue
 				}
 				for _, file := range ref.files {
-					binaryFiles[filepath.ToSlash(file)] = true
+					file = filepath.ToSlash(file)
+					binaryFiles[file] = true
 				}
 				binaries = append(binaries, ref)
 			}
@@ -189,8 +226,27 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		}
 	}
 	detectedBinaries := map[string]bool{}
+	reservedSources := make([]string, 0, len(reservedBinaries))
+	for source := range reservedBinaries {
+		reservedSources = append(reservedSources, source)
+	}
+	sort.Strings(reservedSources)
+	for _, source := range reservedSources {
+		name := reservedBinaries[source]
+		if !allRefs[filepath.Join(args.Dir, source)].HasMain {
+			continue
+		}
+		binaries = append(binaries, binaryRef{
+			kind:       KindTsBinary,
+			name:       name,
+			entryPoint: source,
+			deps:       []string{":" + libName},
+		})
+		detectedBinaries[source] = true
+	}
 	for _, source := range libSrcs {
-		if binaryFiles[filepath.ToSlash(source)] || !allRefs[filepath.Join(args.Dir, source)].HasMain {
+		source = filepath.ToSlash(source)
+		if detectedBinaries[source] || binaryFiles[source] || !allRefs[filepath.Join(args.Dir, source)].HasMain {
 			continue
 		}
 		name := binaryNameForSource(source, cfg)
@@ -206,7 +262,8 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		detectedBinaries[filepath.ToSlash(source)] = true
 	}
 	var staleBinaryNames []string
-	for source, name := range reservedBinaries {
+	for _, source := range reservedSources {
+		name := reservedBinaries[source]
 		if !detectedBinaries[source] {
 			staleBinaryNames = append(staleBinaryNames, name)
 		}
@@ -293,10 +350,10 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 			globals = append(globals, refs.Globals...)
 		}
 		r := rule.NewRule(b.kind, b.name)
-		if b.entryPoint != "" {
+		if !b.existing && b.entryPoint != "" {
 			r.SetAttr("entry_point", b.entryPoint)
 		}
-		if len(b.srcs) > 0 {
+		if !b.existing && len(b.srcs) > 0 {
 			r.SetAttr("srcs", b.srcs)
 		}
 		if len(b.deps) > 0 {
@@ -549,43 +606,6 @@ func withoutOwnedSources(sources []string, owned map[string]bool) []string {
 	return kept
 }
 
-// existingRuleOwnedSources finds package-local TypeScript files claimed by
-// hand-written rules. Generated aggregate rules and binary launchers are
-// excluded: their sources intentionally remain owned by the package library.
-func existingRuleOwnedSources(
-	c *config.Config,
-	file *rule.File,
-	cfg *tsConfig,
-	regularFiles []string,
-	libName string,
-	testName string,
-	visualLibraryName string,
-) map[string]bool {
-	owned := map[string]bool{}
-	if file == nil {
-		return owned
-	}
-
-	available := make(map[string]bool, len(regularFiles))
-	for _, source := range regularFiles {
-		available[filepath.ToSlash(source)] = true
-	}
-
-	for _, r := range file.Rules {
-		if isManagedBinary(c, r) || isGeneratedRule(c, r, cfg, libName, testName, visualLibraryName) {
-			continue
-		}
-		for _, attr := range []string{"entry_point", "srcs"} {
-			for _, source := range localSourcesFromAttr(r, attr, available) {
-				if isTypeScriptFile(source, cfg) {
-					owned[source] = true
-				}
-			}
-		}
-	}
-	return owned
-}
-
 func isManagedBinary(c *config.Config, r *rule.Rule) bool {
 	for _, kind := range managedBinaryKinds {
 		if kindMatches(c, r.Kind(), kind) {
@@ -621,32 +641,6 @@ func isGeneratedRule(
 		}
 	}
 	return false
-}
-
-func localSourcesFromAttr(r *rule.Rule, attr string, available map[string]bool) []string {
-	seen := map[string]bool{}
-	var sources []string
-	candidates := append([]string{r.AttrString(attr)}, r.AttrStrings(attr)...)
-	for _, source := range candidates {
-		source = normalizeLocalSource(source)
-		if !available[source] || seen[source] {
-			continue
-		}
-		seen[source] = true
-		sources = append(sources, source)
-	}
-	sort.Strings(sources)
-	return sources
-}
-
-func normalizeLocalSource(source string) string {
-	source = filepath.ToSlash(source)
-	if strings.HasPrefix(source, "//") || strings.HasPrefix(source, "@") {
-		return ""
-	}
-	source = strings.TrimPrefix(source, ":")
-	source = strings.TrimPrefix(source, "./")
-	return source
 }
 
 // collectSrcs partitions the directory's files for emission. Bundler-config

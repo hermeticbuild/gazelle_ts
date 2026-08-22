@@ -307,25 +307,52 @@ func TestCollectSrcs(t *testing.T) {
 	}
 }
 
-func TestExistingRuleOwnedSources(t *testing.T) {
+func TestExistingCompilationOwnedSources(t *testing.T) {
 	cfg := newTsConfig()
 	c := config.New()
+	c.KindMap = map[string]config.MappedKind{
+		KindTsLibrary: {
+			FromKind: KindTsLibrary,
+			KindName: "custom_ts_library",
+		},
+	}
 	binary := rule.NewRule(KindTsBinary, "cli")
 	binary.SetAttr("entry_point", "main.ts")
-	customTest := rule.NewRule("js_test", "custom_test")
-	customTest.SetAttr("entry_point", "owned.test.ts")
+	runtimeTest := rule.NewRule("js_test", "runtime_test")
+	runtimeTest.SetAttr("entry_point", "runtime.test.ts")
 	resource := rule.NewRule("filegroup", "templates")
 	resource.SetAttr("srcs", []string{"template.ts"})
-	resource.SetAttr("data", []string{"runtime.ts"})
+	explicitLibrary := rule.NewRule(KindTsLibrary, "split")
+	explicitLibrary.SetAttr("srcs", []string{"split.ts"})
+	mappedLibrary := rule.NewRule("custom_ts_library", "mapped")
+	mappedLibrary.SetAttr("srcs", []string{"mapped.ts"})
+	explicitTest := rule.NewRule(KindTsTest, "custom_test")
+	explicitTest.SetAttr("srcs", []string{"owned.test.ts"})
 	generated := rule.NewRule(KindTsLibrary, "pkg")
 	generated.SetAttr("srcs", []string{"library.ts"})
-	file := &rule.File{Rules: []*rule.Rule{binary, customTest, resource, generated}}
+	file := &rule.File{Rules: []*rule.Rule{
+		binary,
+		runtimeTest,
+		resource,
+		explicitLibrary,
+		mappedLibrary,
+		explicitTest,
+		generated,
+	}}
 
-	owned := existingRuleOwnedSources(
+	owned := existingCompilationOwnedSources(
 		c,
 		file,
 		cfg,
-		[]string{"main.ts", "owned.test.ts", "template.ts", "runtime.ts", "library.ts"},
+		[]string{
+			"library.ts",
+			"main.ts",
+			"mapped.ts",
+			"owned.test.ts",
+			"runtime.test.ts",
+			"split.ts",
+			"template.ts",
+		},
 		"pkg",
 		"pkg_test",
 		"pkg_visual_library",
@@ -333,21 +360,24 @@ func TestExistingRuleOwnedSources(t *testing.T) {
 
 	want := map[string]bool{
 		"owned.test.ts": true,
-		"template.ts":   true,
+		"mapped.ts":     true,
+		"split.ts":      true,
 	}
 	if !reflect.DeepEqual(owned, want) {
 		t.Fatalf("owned sources = %v, want %v", owned, want)
 	}
 }
 
-func TestLocalSourcesFromAttr(t *testing.T) {
+func TestLocalSourcesFromListAttr(t *testing.T) {
 	file, err := rule.LoadData("BUILD.bazel", "pkg", []byte(`
 filegroup(
     name = "resources",
     srcs = [
         ":literal.ts",
         "./selected.ts",
+        "*.ts",
         "//other:external.ts",
+        "../escaped.ts",
     ],
 )
 `))
@@ -360,10 +390,10 @@ filegroup(
 		"unrelated.ts": true,
 	}
 
-	got := localSourcesFromAttr(file.Rules[0], "srcs", available)
+	got, ok := localSourcesFromListAttr(file.Rules[0], "srcs", available)
 	want := []string{"literal.ts", "selected.ts"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("local sources = %v, want %v", got, want)
+	if !ok || !reflect.DeepEqual(got, want) {
+		t.Fatalf("local sources = %v, %v; want %v, true", got, ok, want)
 	}
 }
 

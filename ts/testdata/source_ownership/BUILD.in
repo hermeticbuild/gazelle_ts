@@ -1,7 +1,7 @@
 # gazelle:ts_bundler_config_pattern vite.config.ts vite_config
 
 filegroup(
-    name = "owned",
+    name = "resources",
     srcs = [
         "owned.story.tsx",
         "owned.template.ts",
