@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1 (2026-08-22)
+
+## What's Changed
+* gazelle: preserve imported resource sources by @ravi-pplx in https://github.com/hermeticbuild/gazelle_ts/pull/94
+
+
+**Full Changelog**: https://github.com/hermeticbuild/gazelle_ts/compare/v0.6.0...v0.6.1
+
 ## 0.6.0 (2026-08-18)
 
 ## What's Changed
