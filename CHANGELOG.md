@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.2 (2026-08-23)
+
+## What's Changed
+* fix: detect main entrypoints regardless of parameters by @longlho in https://github.com/hermeticbuild/gazelle_ts/pull/96
+
+
+**Full Changelog**: https://github.com/hermeticbuild/gazelle_ts/compare/v0.6.1...v0.6.2
+
 ## 0.6.1 (2026-08-22)
 
 ## What's Changed
