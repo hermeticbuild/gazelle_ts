@@ -73,28 +73,9 @@ pub fn extract_references(path: &str, source_text: &str) -> ExtractedReferences 
 
 fn has_main_entrypoint(program: &Program<'_>) -> bool {
     let has_declaration = program.body.iter().any(|statement| {
-        let Some(function) = top_level_function(statement) else {
-            return false;
-        };
-        let Some(id) = &function.id else {
-            return false;
-        };
-        if id.name.as_str() != "main" {
-            return false;
-        }
-        function.params.items.first().is_some_and(|parameter| {
-            matches!(
-                &parameter.pattern,
-                BindingPattern::BindingIdentifier(identifier)
-                    if matches!(identifier.name.as_str(), "args" | "argv")
-            )
-        }) || function.params.rest.as_ref().is_some_and(|parameter| {
-            matches!(
-                &parameter.rest.argument,
-                BindingPattern::BindingIdentifier(identifier)
-                    if matches!(identifier.name.as_str(), "args" | "argv")
-            )
-        })
+        top_level_function(statement)
+            .and_then(|function| function.id.as_ref())
+            .is_some_and(|id| id.name.as_str() == "main")
     });
     let has_call = program.body.iter().any(|statement| {
         let Statement::ExpressionStatement(statement) = statement else {
@@ -932,9 +913,19 @@ mod tests {
     }
 
     #[test]
-    fn ignores_uncalled_or_argumentless_main() {
+    fn detects_called_main_with_any_parameters() {
+        for source in [
+            "function main() {}\nmain();",
+            "function main(_) {}\nmain({});",
+            "function main({ deps }: { deps: string[] }) {}\nmain({ deps: [] });",
+        ] {
+            assert!(extract_references("main.ts", source).has_main);
+        }
+    }
+
+    #[test]
+    fn ignores_uncalled_main() {
         assert!(!extract_references("lib.ts", "function main(args: string[]) {}").has_main);
-        assert!(!extract_references("lib.ts", "function main() {}\nmain();").has_main);
     }
 
     #[test]
