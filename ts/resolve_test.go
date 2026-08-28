@@ -1103,6 +1103,27 @@ func TestDeduplicateAndSort(t *testing.T) {
 	}
 }
 
+func TestSetLabelListAttr(t *testing.T) {
+	r := rule.NewRule("example", "example")
+	setLabelListAttr(
+		r,
+		"deps",
+		[]string{
+			":local",
+			"//pkg:local",
+			"@workspace//pkg:local",
+			"//other:target",
+			"@external//dependency:target",
+		},
+		label.Label{Repo: "workspace", Pkg: "pkg", Name: "example"},
+	)
+
+	want := []string{"//other:target", ":local", "@external//dependency:target"}
+	if got := r.AttrStrings("deps"); !reflect.DeepEqual(got, want) {
+		t.Errorf("deps = %v, want %v", got, want)
+	}
+}
+
 func ruleDirective(key, value string) rule.Directive {
 	return rule.Directive{Key: key, Value: value}
 }
