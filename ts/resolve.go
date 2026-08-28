@@ -204,7 +204,12 @@ func setStringListAttr(r *rule.Rule, attr string, values []string) {
 }
 
 func setLabelListAttr(r *rule.Rule, attr string, values []string, from label.Label) {
-	seen := make(map[label.Label]bool, len(values))
+	type retainedLabel struct {
+		index      int
+		relative   bool
+	}
+
+	retainedByLabel := make(map[label.Label]retainedLabel, len(values))
 	deduplicated := make([]string, 0, len(values))
 	for _, value := range values {
 		parsed, err := label.Parse(value)
@@ -216,10 +221,18 @@ func setLabelListAttr(r *rule.Rule, attr string, values []string, from label.Lab
 		if !parsed.Relative && absolute.Repo == "" {
 			absolute.Repo = from.Repo
 		}
-		if seen[absolute] {
+		if retained, ok := retainedByLabel[absolute]; ok {
+			if parsed.Relative && !retained.relative {
+				deduplicated[retained.index] = value
+				retained.relative = true
+				retainedByLabel[absolute] = retained
+			}
 			continue
 		}
-		seen[absolute] = true
+		retainedByLabel[absolute] = retainedLabel{
+			index:    len(deduplicated),
+			relative: parsed.Relative,
+		}
 		deduplicated = append(deduplicated, value)
 	}
 	setStringListAttr(r, attr, deduplicated)

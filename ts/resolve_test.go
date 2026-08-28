@@ -1109,9 +1109,9 @@ func TestSetLabelListAttr(t *testing.T) {
 		r,
 		"deps",
 		[]string{
-			":local",
 			"//pkg:local",
 			"@workspace//pkg:local",
+			":local",
 			"//other:target",
 			"@external//dependency:target",
 		},
