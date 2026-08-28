@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.3 (2026-08-28)
+
+## What's Changed
+* Deduplicate equivalent labels by @isaacparker0 in https://github.com/hermeticbuild/gazelle_ts/pull/99
+* ci: enforce conventional commits by @longlho in https://github.com/hermeticbuild/gazelle_ts/pull/100
+
+## New Contributors
+* @isaacparker0 made their first contribution in https://github.com/hermeticbuild/gazelle_ts/pull/99
+
+**Full Changelog**: https://github.com/hermeticbuild/gazelle_ts/compare/v0.6.2...v0.6.3
+
 ## 0.6.2 (2026-08-23)
 
 ## What's Changed
