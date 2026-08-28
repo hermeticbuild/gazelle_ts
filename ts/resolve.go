@@ -204,20 +204,25 @@ func setStringListAttr(r *rule.Rule, attr string, values []string) {
 }
 
 func setLabelListAttr(r *rule.Rule, attr string, values []string, from label.Label) {
-	normalized := make([]string, 0, len(values))
+	seen := make(map[label.Label]bool, len(values))
+	deduplicated := make([]string, 0, len(values))
 	for _, value := range values {
 		parsed, err := label.Parse(value)
 		if err != nil {
-			normalized = append(normalized, value)
+			deduplicated = append(deduplicated, value)
 			continue
 		}
 		absolute := parsed.Abs(from.Repo, from.Pkg)
 		if !parsed.Relative && absolute.Repo == "" {
 			absolute.Repo = from.Repo
 		}
-		normalized = append(normalized, absolute.Rel(from.Repo, from.Pkg).String())
+		if seen[absolute] {
+			continue
+		}
+		seen[absolute] = true
+		deduplicated = append(deduplicated, value)
 	}
-	setStringListAttr(r, attr, normalized)
+	setStringListAttr(r, attr, deduplicated)
 }
 
 func resolveGlobalsToDeps(globals []GlobalReference, cfg *tsConfig) resolvedDeps {
