@@ -1,0 +1,8 @@
+skip_output:
+  - meta
+  - summary
+
+commit-msg:
+  commands:
+    commitlint:
+      run: ./node_modules/.bin/commitlint --edit {1}
