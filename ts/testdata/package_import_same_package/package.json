@@ -1,0 +1,6 @@
+{
+    "name": "package_import_same_package",
+    "imports": {
+        "#/*": "./*"
+    }
+}

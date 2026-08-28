@@ -84,10 +84,10 @@ func (l *tsLang) Resolve(
 		all := append([]string{}, resolved.external...)
 		all = append(all, resolved.internal...)
 		all = append(all, globalResolved.external...)
-		setOrDelete(r, "deps", all)
+		setLabelListAttr(r, "deps", all, from)
 		tsconfigTypes := append([]string{}, resolved.tsconfigTypes...)
 		tsconfigTypes = append(tsconfigTypes, globalResolved.tsconfigTypes...)
-		setOrDelete(r, "tsconfig_types", tsconfigTypes)
+		setStringListAttr(r, "tsconfig_types", tsconfigTypes)
 
 	case kindMatches(c, r.Kind(), KindTsTest):
 		// ts_test keeps the standard Bazel split: srcs are test entrypoints,
@@ -100,11 +100,11 @@ func (l *tsLang) Resolve(
 		all = append(all, testResolved.external...)
 		all = append(all, testResolved.internal...)
 		all = append(all, testGlobalResolved.external...)
-		setOrDelete(r, "deps", all)
+		setLabelListAttr(r, "deps", all, from)
 		tsconfigTypes := append([]string{}, r.AttrStrings("tsconfig_types")...)
 		tsconfigTypes = append(tsconfigTypes, testResolved.tsconfigTypes...)
 		tsconfigTypes = append(tsconfigTypes, testGlobalResolved.tsconfigTypes...)
-		setOrDelete(r, "tsconfig_types", tsconfigTypes)
+		setStringListAttr(r, "tsconfig_types", tsconfigTypes)
 
 	case kindMatches(c, r.Kind(), KindTsVisualLibrary):
 		// ts_visual_library mirrors a compile target for Storybook-only entrypoints:
@@ -117,11 +117,11 @@ func (l *tsLang) Resolve(
 		all = append(all, resolved.external...)
 		all = append(all, resolved.internal...)
 		all = append(all, globalResolved.external...)
-		setOrDelete(r, "deps", all)
+		setLabelListAttr(r, "deps", all, from)
 		tsconfigTypes := append([]string{}, r.AttrStrings("tsconfig_types")...)
 		tsconfigTypes = append(tsconfigTypes, resolved.tsconfigTypes...)
 		tsconfigTypes = append(tsconfigTypes, globalResolved.tsconfigTypes...)
-		setOrDelete(r, "tsconfig_types", tsconfigTypes)
+		setStringListAttr(r, "tsconfig_types", tsconfigTypes)
 
 	case kindMatches(c, r.Kind(), KindJsBinary):
 		// js_binary has no compile-time deps attr, so its source imports must be
@@ -131,14 +131,14 @@ func (l *tsLang) Resolve(
 		all := append([]string{}, resolved.external...)
 		all = append(all, resolved.internal...)
 		all = append(all, globalResolved.external...)
-		setOrDelete(r, "data", all)
+		setLabelListAttr(r, "data", all, from)
 
 	case kindMatches(c, r.Kind(), KindTsBinary):
 		resolved := l.resolveImportsToDeps(c, importData.Imports, from, ix, cfg)
 		globalResolved := resolveGlobalsToDeps(importData.Globals, cfg)
 		if importData.BinaryUsesLibrary {
 			// The sibling library owns and emits the source and import closure.
-			setOrDelete(r, "data", nil)
+			setLabelListAttr(r, "data", nil, from)
 		} else {
 			// Excluded entry points still execute as raw TypeScript. Keep their
 			// direct imports in the runtime closure, and keep package-local
@@ -147,7 +147,7 @@ func (l *tsLang) Resolve(
 			data := append([]string{}, resolved.external...)
 			data = append(data, resolved.internal...)
 			data = append(data, globalResolved.external...)
-			setOrDelete(r, "data", data)
+			setLabelListAttr(r, "data", data, from)
 
 			deps := append([]string{}, resolved.external...)
 			for _, dep := range resolved.internal {
@@ -156,11 +156,11 @@ func (l *tsLang) Resolve(
 				}
 			}
 			deps = append(deps, globalResolved.external...)
-			setOrDelete(r, "deps", deps)
+			setLabelListAttr(r, "deps", deps, from)
 		}
 		tsconfigTypes := append([]string{}, resolved.tsconfigTypes...)
 		tsconfigTypes = append(tsconfigTypes, globalResolved.tsconfigTypes...)
-		setOrDelete(r, "tsconfig_types", tsconfigTypes)
+		setStringListAttr(r, "tsconfig_types", tsconfigTypes)
 
 	case kindMatches(c, r.Kind(), KindBundlerConfig):
 		// Bundler-config rules are a separate compilation unit so build-time
@@ -187,20 +187,55 @@ func (l *tsLang) Resolve(
 			all = append(all, found[0].Label.Rel(from.Repo, from.Pkg).String())
 			break
 		}
-		setOrDelete(r, "deps", all)
+		setLabelListAttr(r, "deps", all, from)
 		tsconfigTypes := append([]string{}, resolved.tsconfigTypes...)
 		tsconfigTypes = append(tsconfigTypes, globalResolved.tsconfigTypes...)
-		setOrDelete(r, "tsconfig_types", tsconfigTypes)
+		setStringListAttr(r, "tsconfig_types", tsconfigTypes)
 	}
 }
 
-func setOrDelete(r *rule.Rule, attr string, values []string) {
+func setStringListAttr(r *rule.Rule, attr string, values []string) {
 	values = deduplicateAndSort(values)
 	if len(values) > 0 {
 		r.SetAttr(attr, values)
 	} else {
 		r.DelAttr(attr)
 	}
+}
+
+func setLabelListAttr(r *rule.Rule, attr string, values []string, from label.Label) {
+	type retainedLabel struct {
+		index      int
+		relative   bool
+	}
+
+	retainedByLabel := make(map[label.Label]retainedLabel, len(values))
+	deduplicated := make([]string, 0, len(values))
+	for _, value := range values {
+		parsed, err := label.Parse(value)
+		if err != nil {
+			deduplicated = append(deduplicated, value)
+			continue
+		}
+		absolute := parsed.Abs(from.Repo, from.Pkg)
+		if !parsed.Relative && absolute.Repo == "" {
+			absolute.Repo = from.Repo
+		}
+		if retained, ok := retainedByLabel[absolute]; ok {
+			if parsed.Relative && !retained.relative {
+				deduplicated[retained.index] = value
+				retained.relative = true
+				retainedByLabel[absolute] = retained
+			}
+			continue
+		}
+		retainedByLabel[absolute] = retainedLabel{
+			index:    len(deduplicated),
+			relative: parsed.Relative,
+		}
+		deduplicated = append(deduplicated, value)
+	}
+	setStringListAttr(r, attr, deduplicated)
 }
 
 func resolveGlobalsToDeps(globals []GlobalReference, cfg *tsConfig) resolvedDeps {

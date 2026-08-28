@@ -1,0 +1,13 @@
+load("@gazelle_ts//ts:defs.bzl", "ts_library", "ts_test")
+
+ts_library(
+    name = "lib",
+    srcs = ["app.ts"],
+    visibility = ["//visibility:public"],
+)
+
+ts_test(
+    name = "test",
+    srcs = ["app.test.ts"],
+    deps = [":lib"],
+)
