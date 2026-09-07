@@ -110,6 +110,6 @@ gazelle_binary(
 gazelle_generation_test(
     name = "gazelle_generation_test",
     gazelle_binary = ":gazelle_test_binary",
-    gazelle_timeout_seconds = 60,
     test_data = glob(["testdata/**"]),
+    timeout = "short",
 )
