@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.4 (2026-09-07)
+
+## What's Changed
+* fix: replace deprecated timeout by @isaacparker0 in https://github.com/hermeticbuild/gazelle_ts/pull/102
+
+
+**Full Changelog**: https://github.com/hermeticbuild/gazelle_ts/compare/v0.6.3...v0.6.4
+
 ## 0.6.3 (2026-08-28)
 
 ## What's Changed
