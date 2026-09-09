@@ -36,13 +36,16 @@ toolchains = use_extension(
     "@rules_rs//rs/toolchains:module_extension.bzl",
     "toolchains",
 )
+# Namespace this repo so consumers can declare a differently configured
+# default_rust_toolchains without conflicting in the shared extension.
 toolchains.toolchain(
     edition = "2024",
+    name = "gazelle_ts_rust_toolchains",
     version = "1.95.0",
 )
-use_repo(toolchains, "default_rust_toolchains")
+use_repo(toolchains, "gazelle_ts_rust_toolchains")
 
-register_toolchains("@default_rust_toolchains//:all")
+register_toolchains("@gazelle_ts_rust_toolchains//:all")
 
 # Crate resolution: rules_rs reads Cargo.toml/Cargo.lock directly (no
 # repinning). Propagates to consumers along with the rust toolchain above.
