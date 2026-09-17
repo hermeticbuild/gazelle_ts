@@ -10,7 +10,7 @@ Validates that downstream consumers can cross-compile a `gazelle_binary` linking
 No repository visible as '@macos_sdk' from repository '@@gazelle_ts+'
 ```
 
-This example pins `rules_rs` to a version (`0.0.65`) that exhibits the regression so the cross-compile build catches any future drop of the re-export in `gazelle_ts`'s `MODULE.bazel`.
+This example uses the same `rules_rs` version as the main module so its cross-compile analysis catches toolchain visibility regressions after dependency upgrades.
 
 ## Try it
 

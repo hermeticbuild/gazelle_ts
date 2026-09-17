@@ -16,7 +16,7 @@ bazel_dep(name = "rules_nodejs", version = "6.7.4")
 bazel_dep(name = "llvm", version = "0.7.6")
 
 # Expose @rules_rust so .bazelrc can set Rust allocator symbol mode.
-bazel_dep(name = "rules_rs", version = "0.0.73")
+bazel_dep(name = "rules_rs", version = "0.0.111")
 
 rules_rust = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
 use_repo(rules_rust, "rules_rust")
