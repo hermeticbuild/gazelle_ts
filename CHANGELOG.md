@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.5 (2026-09-17)
+
+## What's Changed
+* fix: upgrade rules_rs and register split toolchains by @longlho in https://github.com/hermeticbuild/gazelle_ts/pull/104
+
+
+**Full Changelog**: https://github.com/hermeticbuild/gazelle_ts/compare/v0.6.4...v0.6.5
+
 ## 0.6.4 (2026-09-07)
 
 ## What's Changed
