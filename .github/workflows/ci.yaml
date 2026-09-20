@@ -107,14 +107,10 @@ jobs:
           bazelisk test //...
           bazelisk run //:gazelle -- update -mode=diff
 
-  # cross_compile is special: it has no TypeScript source and no gazelle diff
-  # to check — its job is to analyze a darwin-targeted gazelle_binary on a
-  # Linux runner so the @macos_sdk visibility regression in gazelle_ts's
-  # MODULE.bazel is caught before it ships. We use --nobuild because the
-  # Linux runner has no Apple cc toolchain registered; the regression
-  # manifests at analysis time, before linking is ever attempted.
+  # Analyze a consumer binary for Darwin and Windows to catch SDK visibility
+  # and missing Rust target regressions without cross-linking on Linux.
   cross-compile:
-    name: examples/cross_compile darwin analyze (bazel ${{ matrix.bazel }})
+    name: examples/cross_compile analyze (bazel ${{ matrix.bazel }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -138,6 +134,16 @@ jobs:
         run: |
           set -euo pipefail
           for triple in aarch64-apple-darwin x86_64-apple-darwin; do
+            echo "::group::--platforms=$triple"
+            bazelisk build --nobuild "--platforms=@rules_rs//rs/platforms:$triple" //:gazelle_bin
+            echo "::endgroup::"
+          done
+
+      - name: analyze Windows targets from linux
+        working-directory: examples/cross_compile
+        run: |
+          set -euo pipefail
+          for triple in aarch64-pc-windows-gnullvm x86_64-pc-windows-gnullvm; do
             echo "::group::--platforms=$triple"
             bazelisk build --nobuild "--platforms=@rules_rs//rs/platforms:$triple" //:gazelle_bin
             echo "::endgroup::"
