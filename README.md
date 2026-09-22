@@ -61,6 +61,11 @@ build:linux --linkopt=-no-pie
 
 See [examples/basic/.bazelrc](examples/basic/.bazelrc) for a working setup.
 
+Rust dependency resolution includes Windows x64 and ARM64 for GNU LLVM and MSVC.
+The consuming workspace must supply a C/C++ toolchain for its selected ABI:
+the registered LLVM toolchain supports GNU LLVM; MSVC needs a separate compatible
+toolchain. CI checks Windows GNU LLVM cross-target analysis, not native execution.
+
 ### 2. Compose Gazelle With The TypeScript Language
 
 `@gazelle_ts//ts` is a Gazelle language extension. Consumers compose their own
