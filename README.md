@@ -150,6 +150,40 @@ If you skip `map_kind`, the fallbacks in `@gazelle_ts//ts:defs.bzl` collect
 files into `filegroup`s so BUILD files still load, but they do not typecheck,
 run tests, or build binaries.
 
+#### Additional Library Macros
+
+Use `alias_kind` for an existing library macro without changing the default
+kind Gazelle generates. When using `map_kind`, alias the mapped kind:
+
+```starlark
+# gazelle:map_kind ts_library app_ts_library //tools:ts.bzl
+# gazelle:alias_kind node_ts_library app_ts_library
+```
+
+Gazelle keeps existing `node_ts_library` calls and indexes their sources, while
+new libraries use `app_ts_library`. For example, a `node_ts_library` named
+`shared` with `srcs = ["protocol.ts"]` in `shared/BUILD.bazel` lets an import of
+`../shared/protocol` from `consumer/index.ts` infer `deps = ["//shared"]`.
+The macros must accept the same library attributes, including `name`, `srcs`,
+and `deps`.
+
+For a subtree where new libraries should also use `node_ts_library`, override
+the mapping in that subtree's BUILD file instead:
+
+```starlark
+# gazelle:map_kind ts_library node_ts_library //tools:ts.bzl
+```
+
+`# gazelle:ignore` prevents edits to that BUILD file but still allows indexing
+its existing rules. Keep indexing enabled (the default). Generated files named
+literally in `srcs`, such as `generated.ts`, can be indexed before they exist;
+Gazelle does not expand arbitrary generator labels or computed source lists.
+
+The [`alias_kind_libraries`](ts/testdata/alias_kind_libraries) and
+[`scoped_map_kind_libraries`](ts/testdata/scoped_map_kind_libraries) regression
+fixtures cover both configurations, including an ignored producer with a
+generated source.
+
 ### 4. Prefer `package.json` `imports` For Internal Paths
 
 `gazelle_ts` reads the root `package.json` `imports` map and uses it for TS

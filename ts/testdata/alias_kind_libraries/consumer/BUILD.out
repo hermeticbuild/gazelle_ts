@@ -1,0 +1,11 @@
+load("//tools:ts.bzl", "app_ts_library")
+
+app_ts_library(
+    name = "consumer",
+    srcs = ["index.ts"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//ignored",
+        "//shared",
+    ],
+)

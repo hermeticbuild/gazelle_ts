@@ -1,0 +1,17 @@
+load("//tools:ts.bzl", "node_ts_library")
+
+# gazelle:map_kind ts_library node_ts_library //tools:ts.bzl
+
+# gazelle:ignore
+
+genrule(
+    name = "generate",
+    outs = ["generated.ts"],
+    cmd = "echo 'export const generatedVersion = 2;' > $@",
+)
+
+node_ts_library(
+    name = "ignored",
+    srcs = ["generated.ts"],
+    visibility = ["//visibility:public"],
+)
