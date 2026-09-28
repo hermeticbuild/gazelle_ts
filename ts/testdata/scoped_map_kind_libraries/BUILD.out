@@ -1,0 +1,1 @@
+# gazelle:map_kind ts_library app_ts_library //tools:ts.bzl

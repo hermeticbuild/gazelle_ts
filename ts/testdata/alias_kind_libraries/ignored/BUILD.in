@@ -1,0 +1,15 @@
+load("//tools:ts.bzl", "node_ts_library")
+
+# gazelle:ignore
+
+genrule(
+    name = "generate",
+    outs = ["generated.ts"],
+    cmd = "echo 'export const generatedVersion = 2;' > $@",
+)
+
+node_ts_library(
+    name = "ignored",
+    srcs = ["generated.ts"],
+    visibility = ["//visibility:public"],
+)

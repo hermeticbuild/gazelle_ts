@@ -1,0 +1,9 @@
+load("//tools:ts.bzl", "node_ts_library")
+
+# gazelle:map_kind ts_library node_ts_library //tools:ts.bzl
+
+node_ts_library(
+    name = "shared",
+    srcs = ["protocol.ts"],
+    visibility = ["//visibility:public"],
+)

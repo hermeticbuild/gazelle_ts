@@ -1,0 +1,7 @@
+load("//tools:ts.bzl", "node_ts_library")
+
+node_ts_library(
+    name = "shared",
+    srcs = ["protocol.ts"],
+    visibility = ["//visibility:public"],
+)
