@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0 (2026-10-16)
+
+## What's Changed
+* fix: resolve Rust dependencies for Windows targets by @longlho in https://github.com/hermeticbuild/gazelle_ts/pull/106
+* docs: document additional library macros with regression coverage by @longlho in https://github.com/hermeticbuild/gazelle_ts/pull/108
+* feat: remove ts_test_data directive by @longlho in https://github.com/hermeticbuild/gazelle_ts/pull/109
+
+
+**Full Changelog**: https://github.com/hermeticbuild/gazelle_ts/compare/v0.6.5...v1.0.0
+
 ## 0.6.5 (2026-09-17)
 
 ## What's Changed
