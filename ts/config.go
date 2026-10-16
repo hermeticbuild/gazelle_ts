@@ -87,9 +87,6 @@ type tsConfig struct {
 	// resolved package name.
 	npmLinkPattern string
 
-	// testData is added to every emitted test rule's `data` attr.
-	testData []string
-
 	// tsconfigTypes is added to every emitted TypeScript compilation rule's
 	// `tsconfig_types` attr when the corresponding @types/* package is
 	// resolved. This is an allowlist of ambient type packages, not a list of
@@ -139,7 +136,6 @@ func (c *tsConfig) clone() *tsConfig {
 	cp.testPatterns = append([]string(nil), c.testPatterns...)
 	cp.visualLibraryPatterns = append([]string(nil), c.visualLibraryPatterns...)
 	cp.extensions = append([]string(nil), c.extensions...)
-	cp.testData = append([]string(nil), c.testData...)
 	cp.tsconfigTypes = append([]string(nil), c.tsconfigTypes...)
 	cp.globalResolves = copyStringMap(c.globalResolves)
 	cp.bundlerConfigSpecs = append([]bundlerConfigSpec(nil), c.bundlerConfigSpecs...)

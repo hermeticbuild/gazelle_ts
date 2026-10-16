@@ -329,7 +329,6 @@ directory overrides or appends to them.
 | `ts_visual_library_pattern` | `*.story.tsx`, `*.visual.tsx`, `**/*.story.tsx`, `**/*.visual.tsx` | Append a doublestar glob used to classify visual library files. |
 | `ts_extension` | `.ts`, `.tsx` | Append a file extension treated as TypeScript input. |
 | `ts_npm_link_pattern` | `//:node_modules/{pkg}` | Template for npm labels. `{pkg}` is replaced with the resolved package name, including scopes. |
-| `ts_test_data` | empty | Append a label to every generated test rule's `data`. |
 | `ts_tsconfig_types` | `node` | Append ambient type names that may be emitted in `tsconfig_types` when imported `@types/*` deps are resolved. This is an allowlist, not a list of every type dep; `ts_resolve_global` providers infer their own type names. |
 | `ts_resolve_global` | empty | Add a `<global> <label>` mapping. Referencing the global adds the label to `deps` and infers a `tsconfig_types` entry. Longest matching global prefix wins. |
 | `ts_bundler_config_pattern` | empty | Add a `<glob> <name>` mapping. Matching files are removed from library/test srcs and emitted as `ts_bundler_config(name = <name>)`. |
@@ -385,7 +384,8 @@ Intentionally unsupported or skipped:
 - `tsconfig.json` `paths` mappings are not read. Use `package.json` `imports`
   or Gazelle `resolve` / `resolve_regexp` directives.
 - Relative CSS and asset imports are skipped as source deps. Add runtime assets
-  with `# keep`, `ts_test_data`, or a project-specific wrapper.
+  with `# keep` on the consuming target's `data` entries, or a
+  project-specific wrapper.
 
 ### `package.json` `imports`
 
@@ -484,8 +484,29 @@ runs.
 | `name` | generate | Required, from `ts_test_name` or package basename + `_test`. |
 | `srcs` | generate | Mergeable test entrypoints. |
 | `deps` | generate + resolve | Includes the sibling library when present plus imports from test files. |
-| `data` | generate | Mergeable runtime fixtures from `ts_test_data` and `# keep`. |
+| `data` | user | Runtime fixtures declared on the owning test; preserve entries with `# keep`. |
 | `tsconfig_types` | resolve | Inferred ambient type names for test-only imports/globals. |
+
+Runtime-only inputs belong to the test that consumes them. They are not inferred
+from filesystem reads and do not inherit into child packages. Declare each input
+in `data` with `# keep` so regeneration preserves it while updating `srcs` and
+`deps`:
+
+```starlark
+ts_test(
+    name = "widget_test",
+    srcs = ["widget.test.ts"],
+    data = [
+        "fixture.json",  # keep: Read through fs at test runtime.
+    ],
+)
+```
+
+Migration from `ts_test_data`: before upgrading, run the previous Gazelle version
+to materialize existing inputs. Mark the corresponding `data` entries with
+`# keep` on every consuming test, including tests in child packages that inherited
+the directive, then remove the directives. Unprotected entries are removed during
+regeneration.
 
 ### `ts_visual_library`
 

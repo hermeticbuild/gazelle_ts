@@ -55,7 +55,6 @@ func TestApplyDirective_AppendDirectives(t *testing.T) {
 	applyDirective(cfg, rule.Directive{Key: directiveTestPattern, Value: "*.spec.ts"})
 	applyDirective(cfg, rule.Directive{Key: directiveVisualLibraryPattern, Value: "*.stories.tsx"})
 	applyDirective(cfg, rule.Directive{Key: directiveExtension, Value: ".mts"})
-	applyDirective(cfg, rule.Directive{Key: directiveTestData, Value: "//:fixtures"})
 	applyDirective(cfg, rule.Directive{Key: directiveTsconfigTypes, Value: "node react"})
 	applyDirective(cfg, rule.Directive{Key: directiveResolveGlobal, Value: "process //:node_modules/@types/node"})
 
@@ -67,9 +66,6 @@ func TestApplyDirective_AppendDirectives(t *testing.T) {
 	}
 	if !contains(cfg.extensions, ".mts") {
 		t.Errorf("extensions missing .mts: %v", cfg.extensions)
-	}
-	if !contains(cfg.testData, "//:fixtures") {
-		t.Errorf("testData missing //:fixtures: %v", cfg.testData)
 	}
 	if !reflect.DeepEqual(cfg.tsconfigTypes, []string{"node", "react"}) {
 		t.Errorf("tsconfigTypes = %v, want [node react]", cfg.tsconfigTypes)

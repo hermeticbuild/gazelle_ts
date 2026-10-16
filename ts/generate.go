@@ -305,9 +305,6 @@ func (l *tsLang) GenerateRules(args language.GenerateArgs) language.GenerateResu
 		// typecheck only the test files and consume implementation via deps.
 		r := rule.NewRule(KindTsTest, testName)
 		r.SetAttr("srcs", testSrcs)
-		if len(cfg.testData) > 0 {
-			r.SetAttr("data", cfg.testData)
-		}
 		if len(libSrcs) > 0 {
 			r.SetAttr("deps", []string{":" + libName})
 		}
