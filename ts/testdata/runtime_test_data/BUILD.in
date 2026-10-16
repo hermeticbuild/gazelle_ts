@@ -1,0 +1,10 @@
+load("@gazelle_ts//ts:defs.bzl", "ts_test")
+
+ts_test(
+    name = "test",
+    srcs = ["removed.test.ts"],
+    data = [
+        "//fixtures:shared",  # keep: Loaded through fs at runtime.
+        "//fixtures:stale",
+    ],
+)

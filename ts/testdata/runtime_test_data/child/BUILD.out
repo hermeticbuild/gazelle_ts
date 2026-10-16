@@ -1,0 +1,7 @@
+load("@gazelle_ts//ts:defs.bzl", "ts_test")
+
+ts_test(
+    name = "child_test",
+    srcs = ["child.test.ts"],
+    deps = ["//:lib"],
+)
